@@ -6,6 +6,7 @@ use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
 use tracing::debug;
 
+use super::error::OllamaError;
 use super::request::ChatRequest;
 use super::response::{ChatResponse, ListModelsResponse};
 use crate::error::Error;
@@ -70,6 +71,7 @@ impl Ollama {
                         }
                         Event::Message(message) => Some(
                             serde_json::from_str::<ChatResponse>(&message.data)
+                                .map_err(|e| OllamaError::stream_parsing_failed(e.to_string()))
                                 .with_context(|| "Failed to parse Ollama event")
                                 .and_then(|event| {
                                     ChatCompletionMessage::try_from(event).with_context(|| {
@@ -86,7 +88,16 @@ impl Ollama {
                         reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
                             let status = response.status();
                             let body = response.text().await.ok();
-                            Some(Err(Error::InvalidStatusCode(status.as_u16())).with_context(
+                            
+                            // Convert to appropriate OllamaError
+                            let ollama_error = match status.as_u16() {
+                                404 => OllamaError::model_not_found(model.as_str().to_string()),
+                                503 => OllamaError::service_unavailable(url.to_string()),
+                                _ => OllamaError::http_error(status.as_u16(), 
+                                    body.unwrap_or_else(|| "Unknown error".to_string())),
+                            };
+                            
+                            Some(Err(anyhow::anyhow!(ollama_error)).with_context(
                                 || match body {
                                     Some(body) => {
                                         format!("Invalid status code: {status} Reason: {body}")
@@ -128,14 +139,31 @@ impl Ollama {
         match result {
             Err(error) => {
                 tracing::error!(error = ?error, "Failed to fetch models");
+                
+                // Convert to OllamaError for better user experience
+                let ollama_error = if error.is_timeout() {
+                    OllamaError::RequestTimeout { timeout_seconds: 30 }
+                } else if error.is_connect() {
+                    OllamaError::connection_failed(url.to_string(), error)
+                } else {
+                    OllamaError::Unknown { message: error.to_string() }
+                };
+                
                 let ctx_msg = format_http_context(error.status(), "GET", &url);
-                Err(error)
+                Err(anyhow::anyhow!(ollama_error))
                     .with_context(|| ctx_msg)
                     .with_context(|| "Failed to fetch models")
             }
             Ok(response) => {
                 let status = response.status();
                 let ctx_msg = format_http_context(Some(response.status()), "GET", &url);
+                
+                // Handle different status codes with appropriate errors
+                if status == 503 {
+                    return Err(anyhow::anyhow!(OllamaError::service_unavailable(url.to_string())))
+                        .with_context(|| ctx_msg);
+                }
+                
                 let text = response
                     .text()
                     .await
@@ -144,12 +172,19 @@ impl Ollama {
 
                 if status.is_success() {
                     let response: ListModelsResponse = serde_json::from_str(&text)
+                        .map_err(|e| OllamaError::response_parsing_failed(e.to_string()))
                         .with_context(|| ctx_msg)
                         .with_context(|| "Failed to deserialize models response")?;
                     Ok(response.models.into_iter().map(Into::into).collect())
                 } else {
-                    // treat non 200 response as error.
-                    Err(anyhow::anyhow!(text))
+                    // Treat non-200 response as error with appropriate categorization
+                    let ollama_error = match status.as_u16() {
+                        400..=499 => OllamaError::http_error(status.as_u16(), text),
+                        500..=599 => OllamaError::service_unavailable(url.to_string()),
+                        _ => OllamaError::http_error(status.as_u16(), text),
+                    };
+                    
+                    Err(anyhow::anyhow!(ollama_error))
                         .with_context(|| ctx_msg)
                         .with_context(|| "Failed to fetch the models")
                 }
