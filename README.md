@@ -500,6 +500,55 @@ MCP tools can be used as part of multi-agent workflows, allowing specialized age
 
 ---
 
+## Local AI Integration Progress
+
+Forge is actively being enhanced with local AI capabilities to provide a fully local-first development experience. This initiative aims to reduce dependency on cloud providers while maintaining the same powerful AI assistance.
+
+### 🎯 Current Status: Phase 6 Ready
+
+**✅ Completed Phases:**
+- **Phase 4**: Ollama HTTP Client Implementation (2025-07-16)
+  - Complete Ollama HTTP client with streaming support
+  - POST /api/chat endpoint with Server-Sent Events streaming
+  - GET /api/tags endpoint for model discovery
+  - Full integration with existing provider infrastructure
+  - Comprehensive test suite (5/5 tests passing)
+
+- **Phase 5**: Integration Testing and Error Handling (2025-07-16)
+  - Comprehensive OllamaError types with 15+ specific error variants
+  - Integration testing framework with real and mock Ollama service support
+  - Configuration system with validation and health checking
+  - End-to-end testing capabilities with auto-service discovery
+  - Complete integration testing documentation
+
+**🟡 Current Phase:**
+- **Phase 6**: Configuration System and Provider Fallback
+  - Local model configuration system
+  - Intelligent provider fallback logic (local → cloud)
+  - Health checking and service discovery
+  - User preference management
+
+**📋 Upcoming Phases:**
+- **Phase 7-9**: Enhanced Experience (CLI enhancements, model management)
+- **Phase 10-12**: Optimization and Polish (performance, testing, documentation)
+
+### 🚀 Benefits of Local AI Integration
+
+- **Privacy First**: Your code never leaves your machine
+- **Reduced Costs**: No API usage fees for local inference
+- **Offline Capability**: Work without internet connectivity
+- **Customization**: Use specialized models for your specific needs
+- **Performance**: Eliminate network latency for faster responses
+
+### 📖 Documentation
+
+- [Ollama Integration Testing Guide](docs/ollama-integration-testing.md)
+- [Local AI Roadmap Methodology](plans/2025-07-16-local-ai-roadmap-methodology-v1.md)
+- [Phase 5 Progress Tracker](PHASE_5_PROGRESS.md)
+- [Phase 6 Progress Tracker](PHASE_6_PROGRESS.md)
+
+---
+
 ## Documentation
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
