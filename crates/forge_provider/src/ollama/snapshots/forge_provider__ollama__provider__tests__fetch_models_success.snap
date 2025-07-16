@@ -1,0 +1,24 @@
+---
+source: crates/forge_provider/src/ollama/provider.rs
+expression: actual
+---
+[
+  {
+    "id": "llama3.2:latest",
+    "name": "llama3.2:latest",
+    "description": "Ollama model - llama",
+    "context_length": null,
+    "tools_supported": true,
+    "supports_parallel_tool_calls": null,
+    "supports_reasoning": null
+  },
+  {
+    "id": "deepseek-r1:latest",
+    "name": "deepseek-r1:latest",
+    "description": "Ollama model - qwen2",
+    "context_length": null,
+    "tools_supported": true,
+    "supports_parallel_tool_calls": null,
+    "supports_reasoning": null
+  }
+]

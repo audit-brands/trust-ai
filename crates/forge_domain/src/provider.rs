@@ -5,12 +5,14 @@ use url::Url;
 pub enum ProviderUrl {
     OpenAI(String),
     Anthropic(String),
+    Ollama(String),
 }
 impl ProviderUrl {
     pub fn into_string(self) -> String {
         match self {
             ProviderUrl::OpenAI(url) => url,
             ProviderUrl::Anthropic(url) => url,
+            ProviderUrl::Ollama(url) => url,
         }
     }
 }
@@ -20,6 +22,7 @@ impl ProviderUrl {
 pub enum Provider {
     OpenAI { url: Url, key: Option<String> },
     Anthropic { url: Url, key: String },
+    Ollama { url: Url },
 }
 
 impl Provider {
@@ -27,6 +30,7 @@ impl Provider {
         match url {
             ProviderUrl::OpenAI(url) => self.open_ai_url(url),
             ProviderUrl::Anthropic(url) => self.anthropic_url(url),
+            ProviderUrl::Ollama(url) => self.ollama_url(url),
         }
     }
     /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
@@ -40,6 +44,7 @@ impl Provider {
                 }
             }
             Provider::Anthropic { .. } => {}
+            Provider::Ollama { .. } => {}
         }
     }
 
@@ -54,6 +59,22 @@ impl Provider {
                 }
             }
             Provider::OpenAI { .. } => {}
+            Provider::Ollama { .. } => {}
+        }
+    }
+
+    /// Sets the Ollama URL if the provider is Ollama
+    fn ollama_url(&mut self, url: String) {
+        match self {
+            Provider::Ollama { url: set_url, .. } => {
+                if url.ends_with("/") {
+                    *set_url = Url::parse(&url).unwrap();
+                } else {
+                    *set_url = Url::parse(&format!("{url}/")).unwrap();
+                }
+            }
+            Provider::OpenAI { .. } => {}
+            Provider::Anthropic { .. } => {}
         }
     }
 
@@ -99,10 +120,20 @@ impl Provider {
         }
     }
 
+    pub fn ollama(url: &str) -> Provider {
+        let parsed_url = if url.ends_with("/") {
+            Url::parse(url).unwrap()
+        } else {
+            Url::parse(&format!("{url}/")).unwrap()
+        };
+        Provider::Ollama { url: parsed_url }
+    }
+
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
             Provider::Anthropic { key, .. } => Some(key),
+            Provider::Ollama { .. } => None,
         }
     }
 }
@@ -114,12 +145,14 @@ impl Provider {
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
     pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
+    pub const OLLAMA_DEFAULT_URL: &str = "http://localhost:11434/api/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
         match self {
             Provider::OpenAI { url, .. } => url.clone(),
             Provider::Anthropic { url, .. } => url.clone(),
+            Provider::Ollama { url, .. } => url.clone(),
         }
     }
 
@@ -127,6 +160,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Ollama { .. } => false,
         }
     }
 
@@ -134,6 +168,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Ollama { .. } => false,
         }
     }
 
@@ -141,6 +176,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Ollama { .. } => false,
         }
     }
 
@@ -148,6 +184,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Ollama { .. } => false,
         }
     }
 
@@ -155,6 +192,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Ollama { .. } => false,
         }
     }
 
@@ -162,7 +200,12 @@ impl Provider {
         match self {
             Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
+            Provider::Ollama { .. } => false,
         }
+    }
+
+    pub fn is_ollama(&self) -> bool {
+        matches!(self, Provider::Ollama { .. })
     }
 }
 
@@ -288,5 +331,46 @@ mod tests {
 
         let fixture_other = Provider::openai("key");
         assert!(!fixture_other.is_xai());
+    }
+
+    #[test]
+    fn test_ollama() {
+        let fixture = Provider::ollama("http://localhost:11434/api");
+        let expected =
+            Provider::Ollama { url: Url::from_str("http://localhost:11434/api/").unwrap() };
+        assert_eq!(fixture, expected);
+    }
+
+    #[test]
+    fn test_is_ollama() {
+        let fixture_ollama = Provider::ollama("http://localhost:11434/api");
+        assert!(fixture_ollama.is_ollama());
+
+        let fixture_other = Provider::openai("key");
+        assert!(!fixture_other.is_ollama());
+    }
+
+    #[test]
+    fn test_ollama_url() {
+        let mut provider =
+            Provider::Ollama { url: Url::from_str("http://localhost:11434/api/").unwrap() };
+
+        // Test URL without trailing slash
+        provider.ollama_url("http://new-ollama-url:11434/api".to_string());
+        assert_eq!(
+            provider,
+            Provider::Ollama {
+                url: Url::from_str("http://new-ollama-url:11434/api/").unwrap(),
+            }
+        );
+
+        // Test URL with trailing slash
+        provider.ollama_url("http://another-ollama-url:11434/api/".to_string());
+        assert_eq!(
+            provider,
+            Provider::Ollama {
+                url: Url::from_str("http://another-ollama-url:11434/api/").unwrap(),
+            }
+        );
     }
 }

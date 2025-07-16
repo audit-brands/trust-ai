@@ -19,6 +19,16 @@ impl MockServer {
             .await
     }
 
+    pub async fn mock_ollama_models(&mut self, body: serde_json::Value, status: usize) -> Mock {
+        self.server
+            .mock("GET", "/api/tags")
+            .with_status(status)
+            .with_header("content-type", "application/json")
+            .with_body(body.to_string())
+            .create_async()
+            .await
+    }
+
     pub fn url(&self) -> String {
         self.server.url()
     }

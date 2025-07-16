@@ -13,6 +13,7 @@ use tokio_stream::StreamExt;
 
 use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
+use crate::ollama::Ollama;
 use crate::retry::into_retry;
 
 #[derive(Clone)]
@@ -25,6 +26,7 @@ pub struct Client {
 enum InnerClient {
     OpenAICompat(ForgeProvider),
     Anthropic(Anthropic),
+    Ollama(Ollama),
 }
 
 impl Client {
@@ -67,6 +69,16 @@ impl Client {
                         format!("Failed to initialize Anthropic client with URL: {url}")
                     })?,
             ),
+
+            Provider::Ollama { url } => InnerClient::Ollama(
+                Ollama::builder()
+                    .client(client)
+                    .base_url(url.clone())
+                    .build()
+                    .with_context(|| {
+                        format!("Failed to initialize Ollama client with URL: {url}")
+                    })?,
+            ),
         };
 
         Ok(Self {
@@ -85,6 +97,7 @@ impl Client {
         let models = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.models().await,
             InnerClient::Anthropic(provider) => provider.models().await,
+            InnerClient::Ollama(provider) => provider.models().await,
         })?;
 
         // Update the cache with all fetched models
@@ -109,6 +122,7 @@ impl Client {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
+            InnerClient::Ollama(provider) => provider.chat(model, context).await,
         })?;
 
         let this = self.clone();
