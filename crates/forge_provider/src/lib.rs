@@ -11,3 +11,7 @@ mod utils;
 
 // Re-export from builder.rs
 pub use client::Client;
+
+pub mod config;
+pub mod health;
+pub mod selection;

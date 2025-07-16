@@ -7,6 +7,7 @@ use serde_json::json;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
+#[cfg(test)]
 use crate::mock_server::{normalize_ports, MockServer};
 use crate::ollama::error::OllamaError;
 use crate::ollama::Ollama;
@@ -19,6 +20,7 @@ use crate::ollama::Ollama;
 /// - Error handling scenarios
 /// - Performance and reliability
 /// - Cross-provider compatibility
+#[cfg(test)]
 pub struct OllamaIntegrationTest {
     /// Real Ollama service URL (if available)
     real_service_url: Option<String>,
@@ -28,6 +30,7 @@ pub struct OllamaIntegrationTest {
     client: Client,
 }
 
+#[cfg(test)]
 impl OllamaIntegrationTest {
     /// Create a new integration test suite
     pub async fn new() -> anyhow::Result<Self> {

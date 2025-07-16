@@ -84,13 +84,13 @@ impl OllamaConfig {
     pub fn validate(&self) -> Result<(), OllamaError> {
         // Validate base URL
         let url = Url::parse(&self.base_url)
-            .map_err(|_| OllamaError::invalid_base_url(self.base_url.clone()))?;
+            .map_err(|_| OllamaError::InvalidBaseUrl { url: self.base_url.clone() })?;
 
         // Check for reasonable values
         if self.timeout_seconds == 0 {
-            return Err(OllamaError::invalid_configuration(
-                "Timeout cannot be zero".to_string(),
-            ));
+            return Err(OllamaError::InvalidConfiguration {
+                message: "Timeout cannot be zero".to_string(),
+            });
         }
 
         if self.timeout_seconds > 300 {
@@ -103,7 +103,7 @@ impl OllamaConfig {
 
         // Validate URL scheme
         if !["http", "https"].contains(&url.scheme()) {
-            return Err(OllamaError::invalid_base_url(self.base_url.clone()));
+            return Err(OllamaError::InvalidBaseUrl { url: self.base_url.clone() });
         }
 
         debug!("Ollama configuration validated successfully");
@@ -122,7 +122,9 @@ impl OllamaConfig {
         }
 
         builder.build().map_err(|e| {
-            OllamaError::invalid_configuration(format!("Failed to create HTTP client: {}", e))
+            OllamaError::InvalidConfiguration {
+                message: format!("Failed to create HTTP client: {}", e),
+            }
         })
     }
 
@@ -132,7 +134,7 @@ impl OllamaConfig {
 
         let client = self.create_client()?;
         let base_url = Url::parse(&self.base_url)
-            .map_err(|_| OllamaError::invalid_base_url(self.base_url.clone()))?;
+            .map_err(|_| OllamaError::InvalidBaseUrl { url: self.base_url.clone() })?;
 
         Ok(Ollama::builder()
             .client(client)
@@ -157,14 +159,14 @@ impl OllamaHealthCheck {
     pub async fn check_health(&self) -> Result<HealthStatus, OllamaError> {
         let client = self.config.create_client()?;
         let base_url = Url::parse(&self.config.base_url)
-            .map_err(|_| OllamaError::invalid_base_url(self.config.base_url.clone()))?;
+            .map_err(|_| OllamaError::InvalidBaseUrl { url: self.config.base_url.clone() })?;
 
         info!("Checking Ollama service health at {}", base_url);
 
         // Try to fetch models as a health check
         let models_url = base_url
             .join("api/tags")
-            .map_err(|_| OllamaError::invalid_base_url(self.config.base_url.clone()))?;
+            .map_err(|_| OllamaError::InvalidBaseUrl { url: self.config.base_url.clone() })?;
 
         let start = std::time::Instant::now();
         let response = client.get(models_url).send().await?;

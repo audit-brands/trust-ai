@@ -28,6 +28,53 @@ commands:
       <test>cargo insta test --accept --unreferenced=delete</test>
     - Fix every issue found in the process
 model: anthropic/claude-sonnet-4
+# Local AI Configuration
+local_ai:
+  enabled: true
+  providers:
+    ollama:
+      enabled: true
+      provider_type: "ollama"
+      endpoint: "http://localhost:11434"
+      preferred_models:
+        - "llama3.2:latest"
+        - "codellama:latest"
+        - "qwen2.5-coder:latest"
+      config:
+        type: "ollama"
+        timeout_seconds: 30
+        max_retries: 3
+        retry_delay_ms: 1000
+        connection_pooling: true
+        user_agent: "forge-ai/1.0"
+      health_check:
+        interval_seconds: 30
+        timeout_seconds: 5
+        failure_threshold: 3
+        success_threshold: 2
+  settings:
+    discovery:
+      enabled: true
+      scan_ports: [11434, 11435, 11436]
+      scan_hosts: ["localhost", "127.0.0.1"]
+      interval_seconds: 300
+    monitoring:
+      enabled: true
+      interval_seconds: 60
+      max_response_time_ms: 5000
+
+# Fallback Configuration
+fallback:
+  strategy: "graceful"  # graceful, immediate, manual, none
+  cloud_providers:
+    - "openai"
+    - "anthropic"
+  notify_user: true
+  max_retries: 3
+  retry_delay_ms: 1000
+  decision_timeout_seconds: 10
+  auto_return_to_local: true
+  local_recovery_delay_seconds: 60
 max_walker_depth: 1024
 custom_rules: |-
   Handling Errors:

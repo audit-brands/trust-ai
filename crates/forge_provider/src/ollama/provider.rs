@@ -71,7 +71,7 @@ impl Ollama {
                         }
                         Event::Message(message) => Some(
                             serde_json::from_str::<ChatResponse>(&message.data)
-                                .map_err(|e| OllamaError::stream_parsing_failed(e.to_string()))
+                                .map_err(|e| OllamaError::StreamParsingFailed { message: e.to_string() })
                                 .with_context(|| "Failed to parse Ollama event")
                                 .and_then(|event| {
                                     ChatCompletionMessage::try_from(event).with_context(|| {
@@ -140,16 +140,20 @@ impl Ollama {
             Err(error) => {
                 tracing::error!(error = ?error, "Failed to fetch models");
                 
+                // Get status before moving error
+                let error_status = error.status();
+                let error_msg = error.to_string();
+                
                 // Convert to OllamaError for better user experience
                 let ollama_error = if error.is_timeout() {
                     OllamaError::RequestTimeout { timeout_seconds: 30 }
                 } else if error.is_connect() {
                     OllamaError::connection_failed(url.to_string(), error)
                 } else {
-                    OllamaError::Unknown { message: error.to_string() }
+                    OllamaError::Unknown { message: error_msg }
                 };
                 
-                let ctx_msg = format_http_context(error.status(), "GET", &url);
+                let ctx_msg = format_http_context(error_status, "GET", &url);
                 Err(anyhow::anyhow!(ollama_error))
                     .with_context(|| ctx_msg)
                     .with_context(|| "Failed to fetch models")
