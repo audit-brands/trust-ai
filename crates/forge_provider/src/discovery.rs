@@ -391,8 +391,45 @@ pub struct DiscoveryStats {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use pretty_assertions::assert_eq;
     use super::*;
+
+    fn create_test_model(id: &str, name: &str) -> Model {
+        Model {
+            id: ModelId::new(id),
+            name: Some(name.to_string()),
+            description: Some(format!("Test model: {name}")),
+            context_length: Some(4096),
+            tools_supported: Some(true),
+            supports_parallel_tool_calls: Some(false),
+            supports_reasoning: Some(true),
+        }
+    }
+
+    fn create_healthy_status() -> ProviderHealthStatus {
+        ProviderHealthStatus::Healthy {
+            response_time: Duration::from_millis(100),
+            models_available: 3,
+            additional_info: Some("All systems operational".to_string()),
+        }
+    }
+
+    fn create_degraded_status() -> ProviderHealthStatus {
+        ProviderHealthStatus::Degraded {
+            reason: "High response time".to_string(),
+            response_time: Duration::from_millis(2000),
+            models_available: 2,
+            additional_info: None,
+        }
+    }
+
+    fn create_unhealthy_status() -> ProviderHealthStatus {
+        ProviderHealthStatus::Unhealthy {
+            reason: "Connection timeout".to_string(),
+            response_time: Duration::from_millis(5000),
+        }
+    }
 
     #[tokio::test]
     async fn test_model_discovery_service_creation() {
@@ -401,48 +438,260 @@ mod tests {
         assert!(actual.is_ok());
     }
 
+    #[tokio::test]
+    async fn test_model_discovery_service_with_ollama_config() {
+        let config = LocalAiConfig::with_default_ollama();
+        let actual = ModelDiscoveryService::new(config).await;
+        assert!(actual.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_model_discovery_service_empty_config() {
+        let config = LocalAiConfig::new();
+        let service = ModelDiscoveryService::new(config).await.unwrap();
+        let result = service.discover_models().await.unwrap();
+        
+        assert_eq!(result.discovered_models.len(), 0);
+        assert_eq!(result.stats.total_models, 0);
+        assert_eq!(result.stats.available_models, 0);
+        assert_eq!(result.stats.total_providers, 0);
+    }
+
     #[test]
-    fn test_discovered_model_availability() {
-        let model = Model {
-            id: ModelId::new("test-model"),
-            name: Some("Test Model".to_string()),
-            description: None,
-            context_length: Some(4096),
-            tools_supported: None,
-            supports_parallel_tool_calls: None,
-            supports_reasoning: None,
-        };
+    fn test_discovered_model_healthy_provider() {
+        let model = create_test_model("llama3.2:latest", "Llama 3.2");
+        let health_status = create_healthy_status();
         
         let fixture = DiscoveredModel {
             model: model.clone(),
-            provider: "test-provider".to_string(),
-            provider_health: ProviderHealthStatus::Healthy {
-                response_time: Duration::from_millis(100),
-                models_available: 1,
-                additional_info: None,
-            },
+            provider: "ollama".to_string(),
+            provider_health: health_status.clone(),
             available: true,
             last_checked: std::time::Instant::now(),
             response_time: Some(Duration::from_millis(100)),
         };
         
         assert_eq!(fixture.model.id, model.id);
-        assert_eq!(fixture.provider, "test-provider");
+        assert_eq!(fixture.provider, "ollama");
         assert!(fixture.available);
+        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Healthy { .. }));
+        assert!(fixture.response_time.is_some());
     }
 
     #[test]
-    fn test_discovery_stats() {
-        let stats = DiscoveryStats {
+    fn test_discovered_model_degraded_provider() {
+        let model = create_test_model("qwen2.5:latest", "Qwen 2.5");
+        let health_status = create_degraded_status();
+        
+        let fixture = DiscoveredModel {
+            model: model.clone(),
+            provider: "ollama".to_string(),
+            provider_health: health_status.clone(),
+            available: true, // Still available but degraded
+            last_checked: std::time::Instant::now(),
+            response_time: Some(Duration::from_millis(2000)),
+        };
+        
+        assert_eq!(fixture.model.id, model.id);
+        assert_eq!(fixture.provider, "ollama");
+        assert!(fixture.available);
+        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Degraded { .. }));
+        assert_eq!(fixture.response_time.unwrap(), Duration::from_millis(2000));
+    }
+
+    #[test]
+    fn test_discovered_model_unhealthy_provider() {
+        let model = create_test_model("deepseek-r1:latest", "DeepSeek R1");
+        let health_status = create_unhealthy_status();
+        
+        let fixture = DiscoveredModel {
+            model: model.clone(),
+            provider: "ollama".to_string(),
+            provider_health: health_status.clone(),
+            available: false, // Not available due to unhealthy provider
+            last_checked: std::time::Instant::now(),
+            response_time: None,
+        };
+        
+        assert_eq!(fixture.model.id, model.id);
+        assert_eq!(fixture.provider, "ollama");
+        assert!(!fixture.available);
+        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Unhealthy { .. }));
+        assert!(fixture.response_time.is_none());
+    }
+
+    #[test]
+    fn test_discovery_stats_empty() {
+        let fixture = DiscoveryStats {
+            total_models: 0,
+            available_models: 0,
+            total_providers: 0,
+            last_discovery: None,
+        };
+        
+        assert_eq!(fixture.total_models, 0);
+        assert_eq!(fixture.available_models, 0);
+        assert_eq!(fixture.total_providers, 0);
+        assert!(fixture.last_discovery.is_none());
+    }
+
+    #[test]
+    fn test_discovery_stats_with_models() {
+        let fixture = DiscoveryStats {
             total_models: 5,
             available_models: 3,
             total_providers: 2,
             last_discovery: Some(std::time::Instant::now()),
         };
         
-        assert_eq!(stats.total_models, 5);
-        assert_eq!(stats.available_models, 3);
-        assert_eq!(stats.total_providers, 2);
-        assert!(stats.last_discovery.is_some());
+        assert_eq!(fixture.total_models, 5);
+        assert_eq!(fixture.available_models, 3);
+        assert_eq!(fixture.total_providers, 2);
+        assert!(fixture.last_discovery.is_some());
+    }
+
+    #[test]
+    fn test_discovery_stats_availability_rate() {
+        let fixture = DiscoveryStats {
+            total_models: 10,
+            available_models: 7,
+            total_providers: 3,
+            last_discovery: Some(std::time::Instant::now()),
+        };
+        
+        let availability_rate = fixture.available_models as f64 / fixture.total_models as f64;
+        assert_eq!(availability_rate, 0.7);
+        assert!(availability_rate > 0.5); // More than half available
+    }
+
+    #[test]
+    fn test_model_discovery_result_empty() {
+        let fixture = ModelDiscoveryResult {
+            discovered_models: vec![],
+            stats: DiscoveryStats {
+                total_models: 0,
+                available_models: 0,
+                total_providers: 0,
+                last_discovery: Some(std::time::Instant::now()),
+            },
+        };
+        
+        assert!(fixture.discovered_models.is_empty());
+        assert_eq!(fixture.stats.total_models, 0);
+        assert_eq!(fixture.stats.available_models, 0);
+    }
+
+    #[test]
+    fn test_model_discovery_result_with_models() {
+        let model1 = create_test_model("llama3.2:latest", "Llama 3.2");
+        let model2 = create_test_model("qwen2.5:latest", "Qwen 2.5");
+        
+        let discovered_model1 = DiscoveredModel {
+            model: model1,
+            provider: "ollama".to_string(),
+            provider_health: create_healthy_status(),
+            available: true,
+            last_checked: std::time::Instant::now(),
+            response_time: Some(Duration::from_millis(100)),
+        };
+        
+        let discovered_model2 = DiscoveredModel {
+            model: model2,
+            provider: "ollama".to_string(),
+            provider_health: create_degraded_status(),
+            available: true,
+            last_checked: std::time::Instant::now(),
+            response_time: Some(Duration::from_millis(2000)),
+        };
+        
+        let fixture = ModelDiscoveryResult {
+            discovered_models: vec![discovered_model1, discovered_model2],
+            stats: DiscoveryStats {
+                total_models: 2,
+                available_models: 2,
+                total_providers: 1,
+                last_discovery: Some(std::time::Instant::now()),
+            },
+        };
+        
+        assert_eq!(fixture.discovered_models.len(), 2);
+        assert_eq!(fixture.stats.total_models, 2);
+        assert_eq!(fixture.stats.available_models, 2);
+        assert_eq!(fixture.stats.total_providers, 1);
+        
+        // Verify both models are available
+        assert!(fixture.discovered_models.iter().all(|m| m.available));
+        
+        // Verify different health statuses
+        let health_statuses: Vec<_> = fixture.discovered_models
+            .iter()
+            .map(|m| &m.provider_health)
+            .collect();
+        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Healthy { .. })));
+        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Degraded { .. })));
+    }
+
+    #[test]
+    fn test_model_discovery_result_mixed_availability() {
+        let model1 = create_test_model("llama3.2:latest", "Llama 3.2");
+        let model2 = create_test_model("qwen2.5:latest", "Qwen 2.5");
+        let model3 = create_test_model("deepseek-r1:latest", "DeepSeek R1");
+        
+        let discovered_models = vec![
+            DiscoveredModel {
+                model: model1,
+                provider: "ollama".to_string(),
+                provider_health: create_healthy_status(),
+                available: true,
+                last_checked: std::time::Instant::now(),
+                response_time: Some(Duration::from_millis(100)),
+            },
+            DiscoveredModel {
+                model: model2,
+                provider: "ollama".to_string(),
+                provider_health: create_degraded_status(),
+                available: true,
+                last_checked: std::time::Instant::now(),
+                response_time: Some(Duration::from_millis(2000)),
+            },
+            DiscoveredModel {
+                model: model3,
+                provider: "ollama-backup".to_string(),
+                provider_health: create_unhealthy_status(),
+                available: false,
+                last_checked: std::time::Instant::now(),
+                response_time: None,
+            },
+        ];
+        
+        let fixture = ModelDiscoveryResult {
+            discovered_models: discovered_models.clone(),
+            stats: DiscoveryStats {
+                total_models: 3,
+                available_models: 2,
+                total_providers: 2,
+                last_discovery: Some(std::time::Instant::now()),
+            },
+        };
+        
+        assert_eq!(fixture.discovered_models.len(), 3);
+        assert_eq!(fixture.stats.total_models, 3);
+        assert_eq!(fixture.stats.available_models, 2);
+        assert_eq!(fixture.stats.total_providers, 2);
+        
+        // Verify availability counts
+        let available_count = fixture.discovered_models.iter().filter(|m| m.available).count();
+        let unavailable_count = fixture.discovered_models.iter().filter(|m| !m.available).count();
+        assert_eq!(available_count, 2);
+        assert_eq!(unavailable_count, 1);
+        
+        // Verify provider distribution
+        let providers: std::collections::HashSet<_> = fixture.discovered_models
+            .iter()
+            .map(|m| &m.provider)
+            .collect();
+        assert_eq!(providers.len(), 2);
+        assert!(providers.contains(&"ollama".to_string()));
+        assert!(providers.contains(&"ollama-backup".to_string()));
     }
 }
