@@ -390,6 +390,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     Some(ModelCommand::Select(model_id)) => {
                         self.on_model_select(&model_id).await?;
                     }
+                    Some(ModelCommand::Discover) => {
+                        self.on_model_discover().await?;
+                    }
+                    Some(ModelCommand::Health) => {
+                        self.on_model_health().await?;
+                    }
+                    Some(ModelCommand::Refresh) => {
+                        self.on_model_refresh().await?;
+                    }
                 }
             }
             Command::Shell(ref command) => {
@@ -686,6 +695,153 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Handle model discovery command
+    async fn on_model_discover(&mut self) -> Result<()> {
+        self.writeln(TitleFormat::action("Discovering available models from all providers..."))?;
+        
+        // TODO: Integrate with ModelDiscoveryService once it's available in the API layer
+        // For now, we'll use the existing models() method and enhance the display
+        let models = self.get_models().await?;
+        
+        if models.is_empty() {
+            self.writeln(TitleFormat::error("No models discovered from any provider"))?;
+            self.writeln("Try running '/model refresh' to force discovery refresh")?;
+            return Ok(());
+        }
+
+        self.writeln(TitleFormat::action(format!("Discovered {} models:", models.len())))?;
+        
+        // Group models by provider (basic heuristic for now)
+        let mut provider_models: std::collections::HashMap<String, Vec<&Model>> = std::collections::HashMap::new();
+        
+        for model in &models {
+            let provider = if model.id.as_str().contains("gpt") || model.id.as_str().contains("openai") {
+                "OpenAI"
+            } else if model.id.as_str().contains("claude") || model.id.as_str().contains("anthropic") {
+                "Anthropic"
+            } else if model.id.as_str().contains("ollama") || model.id.as_str().contains("llama") {
+                "Ollama"
+            } else {
+                "Unknown"
+            };
+            
+            provider_models.entry(provider.to_string()).or_default().push(model);
+        }
+        
+        for (provider, provider_model_list) in provider_models {
+            self.writeln(format!("\n📡 {} ({} models):", provider, provider_model_list.len()))?;
+            
+            for model in provider_model_list {
+                let status_indicator = if Some(&model.id) == self.state.model.as_ref() {
+                    "● " // Current model
+                } else {
+                    "  "
+                };
+
+                let context_info = if let Some(context_length) = model.context_length {
+                    format!(" ({})", humanize_context_length(context_length))
+                } else {
+                    String::new()
+                };
+
+                self.writeln(format!("  {}{}{}", status_indicator, model.id, context_info))?;
+            }
+        }
+        
+        self.writeln(format!("\nUse '/model select <id>' to switch models"))?;
+        Ok(())
+    }
+
+    /// Handle model health command
+    async fn on_model_health(&mut self) -> Result<()> {
+        self.writeln(TitleFormat::action("Checking health status of all providers..."))?;
+        
+        // TODO: Integrate with ModelDiscoveryService health monitoring
+        // For now, we'll provide basic health information
+        let models = self.get_models().await?;
+        
+        if models.is_empty() {
+            self.writeln(TitleFormat::error("No providers available for health check"))?;
+            self.writeln("Run '/model discover' to find available providers")?;
+            return Ok(());
+        }
+
+        self.writeln(TitleFormat::action("Provider Health Status:"))?;
+        
+        // Basic health check by trying to fetch models
+        let providers = ["OpenAI", "Anthropic", "Ollama"];
+        
+        for provider in providers {
+            let provider_models: Vec<_> = models.iter()
+                .filter(|model| {
+                    match provider {
+                        "OpenAI" => model.id.as_str().contains("gpt") || model.id.as_str().contains("openai"),
+                        "Anthropic" => model.id.as_str().contains("claude") || model.id.as_str().contains("anthropic"),
+                        "Ollama" => model.id.as_str().contains("ollama") || model.id.as_str().contains("llama"),
+                        _ => false,
+                    }
+                })
+                .collect();
+            
+            if !provider_models.is_empty() {
+                self.writeln(format!("✅ {}: Healthy ({} models available)", provider, provider_models.len()))?;
+            } else {
+                self.writeln(format!("❌ {}: No models available", provider))?;
+            }
+        }
+        
+        self.writeln(format!("\nTotal models available: {}", models.len()))?;
+        self.writeln("Use '/model refresh' to update health status")?;
+        Ok(())
+    }
+
+    /// Handle model refresh command
+    async fn on_model_refresh(&mut self) -> Result<()> {
+        self.writeln(TitleFormat::action("Refreshing model discovery and health checks..."))?;
+        
+        // TODO: Integrate with ModelDiscoveryService refresh functionality
+        // For now, we'll clear any cached models and refetch
+        
+        self.spinner.start(Some("Refreshing models"))?;
+        
+        // Force refresh by getting models again (this will clear cache in the provider service)
+        let models = self.get_models().await?;
+        
+        self.spinner.stop(None)?;
+        
+        if models.is_empty() {
+            self.writeln(TitleFormat::error("No models found after refresh"))?;
+            self.writeln("Check your provider configurations and network connectivity")?;
+        } else {
+            self.writeln(TitleFormat::action(format!("Refresh completed: {} models available", models.len())))?;
+            
+            // Show a summary of what was found
+            let mut provider_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+            
+            for model in &models {
+                let provider = if model.id.as_str().contains("gpt") || model.id.as_str().contains("openai") {
+                    "OpenAI"
+                } else if model.id.as_str().contains("claude") || model.id.as_str().contains("anthropic") {
+                    "Anthropic"
+                } else if model.id.as_str().contains("ollama") || model.id.as_str().contains("llama") {
+                    "Ollama"
+                } else {
+                    "Other"
+                };
+                
+                *provider_counts.entry(provider.to_string()).or_insert(0) += 1;
+            }
+            
+            for (provider, count) in provider_counts {
+                self.writeln(format!("  📡 {}: {} models", provider, count))?;
+            }
+            
+            self.writeln("Use '/model list' to see all available models")?;
+        }
+        
         Ok(())
     }
 

@@ -189,6 +189,9 @@ impl ForgeCommandManager {
                         "list" => Ok(Command::Model(Some(ModelCommand::List))),
                         "status" => Ok(Command::Model(Some(ModelCommand::Status))),
                         "config" => Ok(Command::Model(Some(ModelCommand::Config))),
+                        "discover" => Ok(Command::Model(Some(ModelCommand::Discover))),
+                        "health" => Ok(Command::Model(Some(ModelCommand::Health))),
+                        "refresh" => Ok(Command::Model(Some(ModelCommand::Refresh))),
                         "select" => {
                             if parameters.len() > 1 {
                                 let model_id = parameters[1..].join(" ");
@@ -242,6 +245,12 @@ pub enum ModelCommand {
     Config,
     /// Select a specific model by ID
     Select(String),
+    /// Discover available models from all providers
+    Discover,
+    /// Show health status of all providers
+    Health,
+    /// Refresh model discovery and health checks
+    Refresh,
 }
 
 /// Represents user input types in the chat application.
@@ -292,7 +301,7 @@ pub enum Command {
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
     #[strum(props(
-        usage = "Manage models: /model [list|status|config|select <id>] - list models, show status, view config, or select model"
+        usage = "Manage models: /model [list|status|config|discover|health|refresh|select <id>] - list, show status, view config, discover models, check health, refresh discovery, or select model"
     ))]
     Model(Option<ModelCommand>),
     /// List all available tools with their descriptions and schema
@@ -479,6 +488,51 @@ mod tests {
                 assert_eq!(model_id, "gpt-4");
             }
             _ => panic!("Expected Model(Some(Select)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_discover() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model discover").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Discover)) => (),
+            _ => panic!("Expected Model(Some(Discover)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_health() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model health").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Health)) => (),
+            _ => panic!("Expected Model(Some(Health)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_refresh() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model refresh").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Refresh)) => (),
+            _ => panic!("Expected Model(Some(Refresh)), got {result:?}"),
         }
     }
 

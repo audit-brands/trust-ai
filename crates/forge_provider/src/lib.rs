@@ -13,5 +13,6 @@ mod utils;
 pub use client::Client;
 
 pub mod config;
+pub mod discovery;
 pub mod health;
 pub mod selection;
