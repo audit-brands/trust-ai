@@ -89,10 +89,7 @@ impl Default for FallbackConfig {
     fn default() -> Self {
         Self {
             strategy: FallbackStrategy::Graceful,
-            cloud_providers: vec![
-                "openai".to_string(),
-                "anthropic".to_string(),
-            ],
+            cloud_providers: vec!["openai".to_string(), "anthropic".to_string()],
             notify_user: true,
             max_retries: 3,
             retry_delay_ms: 1000,
@@ -124,7 +121,10 @@ impl FallbackConfig {
         }
 
         if self.decision_timeout_seconds > 60 {
-            warn!("Decision timeout of {} seconds is very high", self.decision_timeout_seconds);
+            warn!(
+                "Decision timeout of {} seconds is very high",
+                self.decision_timeout_seconds
+            );
         }
 
         if self.cloud_providers.is_empty() && self.strategy != FallbackStrategy::None {
@@ -160,10 +160,7 @@ pub struct FallbackEngine {
 impl FallbackEngine {
     /// Create a new fallback engine
     pub fn new(config: FallbackConfig, local_config: LocalAiConfig) -> Self {
-        Self {
-            config,
-            local_config,
-        }
+        Self { config, local_config }
     }
 
     /// Make a fallback decision based on current context and provider health
@@ -180,18 +177,10 @@ impl FallbackEngine {
         );
 
         match self.config.strategy {
-            FallbackStrategy::None => {
-                self.decide_local_only(context, local_health).await
-            }
-            FallbackStrategy::Manual => {
-                self.decide_manual(context, local_health).await
-            }
-            FallbackStrategy::Immediate => {
-                self.decide_immediate(context, local_health).await
-            }
-            FallbackStrategy::Graceful => {
-                self.decide_graceful(context, local_health).await
-            }
+            FallbackStrategy::None => self.decide_local_only(context, local_health).await,
+            FallbackStrategy::Manual => self.decide_manual(context, local_health).await,
+            FallbackStrategy::Immediate => self.decide_immediate(context, local_health).await,
+            FallbackStrategy::Graceful => self.decide_graceful(context, local_health).await,
         }
     }
 
@@ -227,17 +216,17 @@ impl FallbackEngine {
             }
         } else {
             let mut options = Vec::new();
-            
+
             // Add degraded local providers as options
             for (name, status) in local_health {
                 if matches!(status, ProviderHealthStatus::Degraded { .. }) {
-                    options.push(format!("local:{}", name));
+                    options.push(format!("local:{name}"));
                 }
             }
-            
+
             // Add cloud providers as options
             for provider in &self.config.cloud_providers {
-                options.push(format!("cloud:{}", provider));
+                options.push(format!("cloud:{provider}"));
             }
 
             FallbackDecision::RequireManual {
@@ -285,16 +274,16 @@ impl FallbackEngine {
                 let reason = match status {
                     ProviderHealthStatus::Healthy { .. } => "Local provider healthy".to_string(),
                     ProviderHealthStatus::Degraded { .. } => {
-                        format!("Local provider degraded, attempting retry {}/{}", 
-                               context.consecutive_failures + 1, self.config.max_retries)
+                        format!(
+                            "Local provider degraded, attempting retry {}/{}",
+                            context.consecutive_failures + 1,
+                            self.config.max_retries
+                        )
                     }
                     _ => "Local provider status unknown".to_string(),
                 };
-                
-                return FallbackDecision::UseLocal {
-                    provider_name: name.clone(),
-                    reason,
-                };
+
+                return FallbackDecision::UseLocal { provider_name: name.clone(), reason };
             }
         }
 
@@ -323,25 +312,22 @@ impl FallbackEngine {
         context: &FallbackContext,
         local_health: &'a [(String, ProviderHealthStatus)],
     ) -> Option<&'a (String, ProviderHealthStatus)> {
-        local_health
-            .iter()
-            .find(|(name, status)| {
-                matches!(status, ProviderHealthStatus::Healthy { .. }) &&
-                self.provider_supports_model(name, &context.model_id)
-            })
+        local_health.iter().find(|(name, status)| {
+            matches!(status, ProviderHealthStatus::Healthy { .. })
+                && self.provider_supports_model(name, &context.model_id)
+        })
     }
 
-    /// Find a usable local provider (healthy or degraded) that supports the requested model
+    /// Find a usable local provider (healthy or degraded) that supports the
+    /// requested model
     fn find_usable_local_provider<'a>(
         &self,
         context: &FallbackContext,
         local_health: &'a [(String, ProviderHealthStatus)],
     ) -> Option<&'a (String, ProviderHealthStatus)> {
-        local_health
-            .iter()
-            .find(|(name, status)| {
-                status.is_usable() && self.provider_supports_model(name, &context.model_id)
-            })
+        local_health.iter().find(|(name, status)| {
+            status.is_usable() && self.provider_supports_model(name, &context.model_id)
+        })
     }
 
     /// Check if a provider supports the requested model
@@ -351,11 +337,10 @@ impl FallbackEngine {
                 // If no preferred models specified, assume all models are supported
                 return true;
             }
-            
+
             // Check if model is in preferred list or matches pattern
             provider_config.preferred_models.iter().any(|preferred| {
-                preferred == model_id || 
-                model_id.starts_with(&preferred.replace(":latest", ""))
+                preferred == model_id || model_id.starts_with(&preferred.replace(":latest", ""))
             })
         } else {
             false
@@ -370,13 +355,15 @@ impl FallbackEngine {
         // - Model availability
         // - Performance metrics
         // - User preferences
-        
+
         if self.config.cloud_providers.is_empty() {
             return None;
         }
 
         // Prefer providers that support the required features
-        let suitable_providers: Vec<_> = self.config.cloud_providers
+        let suitable_providers: Vec<_> = self
+            .config
+            .cloud_providers
             .iter()
             .filter(|provider| self.cloud_provider_supports_features(provider, context))
             .collect();
@@ -458,8 +445,8 @@ impl FallbackDecision {
     /// Get the provider name if available
     pub fn provider_name(&self) -> Option<&str> {
         match self {
-            FallbackDecision::UseLocal { provider_name, .. } |
-            FallbackDecision::UseCloud { provider_name, .. } => Some(provider_name),
+            FallbackDecision::UseLocal { provider_name, .. }
+            | FallbackDecision::UseCloud { provider_name, .. } => Some(provider_name),
             _ => None,
         }
     }
@@ -467,10 +454,10 @@ impl FallbackDecision {
     /// Get the reason for this decision
     pub fn reason(&self) -> &str {
         match self {
-            FallbackDecision::UseLocal { reason, .. } |
-            FallbackDecision::UseCloud { reason, .. } |
-            FallbackDecision::RequireManual { reason, .. } |
-            FallbackDecision::NoProvider { reason, .. } => reason,
+            FallbackDecision::UseLocal { reason, .. }
+            | FallbackDecision::UseCloud { reason, .. }
+            | FallbackDecision::RequireManual { reason, .. }
+            | FallbackDecision::NoProvider { reason, .. } => reason,
         }
     }
 }
@@ -521,10 +508,12 @@ impl FallbackContext {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::config::local_ai::LocalAiConfig;
-    use pretty_assertions::assert_eq;
-    use std::time::Duration;
 
     fn create_test_local_config() -> LocalAiConfig {
         LocalAiConfig::with_default_ollama()
@@ -554,8 +543,7 @@ mod tests {
 
     #[test]
     fn test_fallback_config_validation_zero_timeout() {
-        let fixture = FallbackConfig::default()
-            .decision_timeout_seconds(0u64);
+        let fixture = FallbackConfig::default().decision_timeout_seconds(0u64);
         let actual = fixture.validate();
         assert!(actual.is_err());
     }
@@ -565,10 +553,10 @@ mod tests {
         let config = FallbackConfig::default().strategy(FallbackStrategy::None);
         let local_config = create_test_local_config();
         let engine = FallbackEngine::new(config, local_config);
-        
+
         let context = FallbackContext::new("llama3.2:latest".to_string());
         let health = vec![("ollama".to_string(), create_healthy_status())];
-        
+
         let actual = engine.decide_provider(&context, &health).await;
         assert!(actual.is_local());
         assert_eq!(actual.provider_name(), Some("ollama"));
@@ -579,10 +567,10 @@ mod tests {
         let config = FallbackConfig::default().strategy(FallbackStrategy::None);
         let local_config = create_test_local_config();
         let engine = FallbackEngine::new(config, local_config);
-        
+
         let context = FallbackContext::new("llama3.2:latest".to_string());
         let health = vec![("ollama".to_string(), create_unhealthy_status())];
-        
+
         let actual = engine.decide_provider(&context, &health).await;
         assert!(actual.no_provider());
     }
@@ -592,10 +580,10 @@ mod tests {
         let config = FallbackConfig::default().strategy(FallbackStrategy::Immediate);
         let local_config = create_test_local_config();
         let engine = FallbackEngine::new(config, local_config);
-        
+
         let context = FallbackContext::new("gpt-4".to_string());
         let health = vec![("ollama".to_string(), create_unhealthy_status())];
-        
+
         let actual = engine.decide_provider(&context, &health).await;
         assert!(actual.is_cloud());
         assert_eq!(actual.provider_name(), Some("openai"));
@@ -608,15 +596,18 @@ mod tests {
             .max_retries(3u32);
         let local_config = create_test_local_config();
         let engine = FallbackEngine::new(config, local_config);
-        
-        let context = FallbackContext::new("llama3.2:latest".to_string())
-            .with_consecutive_failures(1);
-        let health = vec![("ollama".to_string(), ProviderHealthStatus::Degraded {
-            reason: "Slow response".to_string(),
-            response_time: Duration::from_millis(5000),
-            models_available: 3,
-        })];
-        
+
+        let context =
+            FallbackContext::new("llama3.2:latest".to_string()).with_consecutive_failures(1);
+        let health = vec![(
+            "ollama".to_string(),
+            ProviderHealthStatus::Degraded {
+                reason: "Slow response".to_string(),
+                response_time: Duration::from_millis(5000),
+                models_available: 3,
+            },
+        )];
+
         let actual = engine.decide_provider(&context, &health).await;
         assert!(actual.is_local());
     }
@@ -628,11 +619,11 @@ mod tests {
             .max_retries(2u32);
         let local_config = create_test_local_config();
         let engine = FallbackEngine::new(config, local_config);
-        
-        let context = FallbackContext::new("llama3.2:latest".to_string())
-            .with_consecutive_failures(3);
+
+        let context =
+            FallbackContext::new("llama3.2:latest".to_string()).with_consecutive_failures(3);
         let health = vec![("ollama".to_string(), create_unhealthy_status())];
-        
+
         let actual = engine.decide_provider(&context, &health).await;
         assert!(actual.is_cloud());
     }
@@ -671,7 +662,10 @@ mod tests {
         assert_eq!(fixture.requires_tools, true);
         assert_eq!(fixture.previous_provider, Some("ollama".to_string()));
         assert_eq!(fixture.consecutive_failures, 2);
-        assert_eq!(fixture.time_since_last_success, Some(Duration::from_secs(30)));
+        assert_eq!(
+            fixture.time_since_last_success,
+            Some(Duration::from_secs(30))
+        );
     }
 
     #[test]
@@ -683,21 +677,15 @@ mod tests {
         let engine = FallbackEngine::new(config, local_config);
 
         let health = vec![("ollama".to_string(), create_healthy_status())];
-        
+
         // Should not return if not enough time passed
-        let result = engine.should_return_to_local(
-            "cloud:openai",
-            &health,
-            Duration::from_secs(30),
-        );
+        let result =
+            engine.should_return_to_local("cloud:openai", &health, Duration::from_secs(30));
         assert_eq!(result, None);
 
         // Should return if enough time passed and local is healthy
-        let result = engine.should_return_to_local(
-            "cloud:openai",
-            &health,
-            Duration::from_secs(120),
-        );
+        let result =
+            engine.should_return_to_local("cloud:openai", &health, Duration::from_secs(120));
         assert_eq!(result, Some("ollama".to_string()));
     }
 }

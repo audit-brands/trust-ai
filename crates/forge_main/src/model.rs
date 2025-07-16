@@ -7,7 +7,7 @@ use strum_macros::{EnumIter, EnumProperty};
 use crate::info::Info;
 use crate::ui::PartialEvent;
 
-fn humanize_context_length(length: u64) -> String {
+pub fn humanize_context_length(length: u64) -> String {
     if length >= 1_000_000 {
         format!("{:.1}M context", length as f64 / 1_000_000.0)
     } else if length >= 1_000 {
@@ -180,7 +180,31 @@ impl ForgeCommandManager {
             "/act" | "/forge" => Ok(Command::Forge),
             "/plan" | "/muse" => Ok(Command::Muse),
             "/help" => Ok(Command::Help),
-            "/model" => Ok(Command::Model),
+            "/model" => {
+                if parameters.is_empty() {
+                    // Default behavior: open model selection
+                    Ok(Command::Model(None))
+                } else {
+                    match parameters[0] {
+                        "list" => Ok(Command::Model(Some(ModelCommand::List))),
+                        "status" => Ok(Command::Model(Some(ModelCommand::Status))),
+                        "config" => Ok(Command::Model(Some(ModelCommand::Config))),
+                        "select" => {
+                            if parameters.len() > 1 {
+                                let model_id = parameters[1..].join(" ");
+                                Ok(Command::Model(Some(ModelCommand::Select(model_id))))
+                            } else {
+                                Err(anyhow::anyhow!("Model ID required for select command. Usage: /model select <model_id>"))
+                            }
+                        }
+                        _ => {
+                            // Treat as model ID for backward compatibility
+                            let model_id = parameters.join(" ");
+                            Ok(Command::Model(Some(ModelCommand::Select(model_id))))
+                        }
+                    }
+                }
+            }
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
@@ -205,6 +229,19 @@ impl ForgeCommandManager {
             }
         }
     }
+}
+
+/// Model management subcommands for the `/model` command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelCommand {
+    /// List available models
+    List,
+    /// Show current model status and information
+    Status,
+    /// Show model configuration
+    Config,
+    /// Select a specific model by ID
+    Select(String),
 }
 
 /// Represents user input types in the chat application.
@@ -254,8 +291,10 @@ pub enum Command {
     Dump(Option<String>),
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
-    #[strum(props(usage = "Switch to a different model"))]
-    Model,
+    #[strum(props(
+        usage = "Manage models: /model [list|status|config|select <id>] - list models, show status, view config, or select model"
+    ))]
+    Model(Option<ModelCommand>),
     /// List all available tools with their descriptions and schema
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
@@ -295,7 +334,7 @@ impl Command {
             Command::Muse => "/muse",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",
-            Command::Model => "/model",
+            Command::Model(_) => "/model",
             Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
@@ -314,6 +353,134 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[test]
+    fn test_parse_model_command_list() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model list").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::List)) => (),
+            _ => panic!("Expected Model(Some(List)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_status() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model status").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Status)) => (),
+            _ => panic!("Expected Model(Some(Status)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_config() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model config").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Config)) => (),
+            _ => panic!("Expected Model(Some(Config)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_select() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model select gpt-4").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Select(model_id))) => {
+                assert_eq!(model_id, "gpt-4");
+            }
+            _ => panic!("Expected Model(Some(Select)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_select_multi_word() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model select claude-3-opus").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Select(model_id))) => {
+                assert_eq!(model_id, "claude-3-opus");
+            }
+            _ => panic!("Expected Model(Some(Select)), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_select_no_id() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model select");
+
+        // Verify
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Model ID required"));
+    }
+
+    #[test]
+    fn test_parse_model_command_default() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/model").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(None) => (),
+            _ => panic!("Expected Model(None), got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_model_command_backward_compatibility() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute - unknown subcommand should be treated as model ID
+        let result = cmd_manager.parse("/model gpt-4").unwrap();
+
+        // Verify
+        match result {
+            Command::Model(Some(ModelCommand::Select(model_id))) => {
+                assert_eq!(model_id, "gpt-4");
+            }
+            _ => panic!("Expected Model(Some(Select)), got {result:?}"),
+        }
+    }
 
     #[test]
     fn test_extract_command_value_with_provided_value() {

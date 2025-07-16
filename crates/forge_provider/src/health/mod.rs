@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
-
 use tracing::{debug, error, info, warn};
 
 use crate::config::local_ai::{LocalAiConfig, ProviderHealthChecker, ProviderHealthStatus};
@@ -79,7 +78,7 @@ impl HealthMonitor {
     /// Create a new health monitor
     pub async fn new(config: LocalAiConfig) -> anyhow::Result<Self> {
         let mut checkers = HashMap::new();
-        
+
         // Create health checkers for enabled providers
         for (name, provider_config) in config.enabled_providers() {
             if let Ok(checker) = provider_config.create_health_checker() {
@@ -98,13 +97,16 @@ impl HealthMonitor {
 
     /// Start the health monitoring service
     pub async fn start(&self) -> anyhow::Result<()> {
-        info!("Starting health monitor for {} providers", self.checkers.len());
+        info!(
+            "Starting health monitor for {} providers",
+            self.checkers.len()
+        );
 
         // Perform initial health checks
         self.perform_initial_checks().await?;
 
         // Start periodic health checks for each provider
-        for (provider_name, _) in &self.checkers {
+        for provider_name in self.checkers.keys() {
             self.start_provider_monitoring(provider_name.clone()).await;
         }
 
@@ -120,14 +122,18 @@ impl HealthMonitor {
                 Ok(info) => {
                     let mut status = self.health_status.write().await;
                     status.insert(provider_name.clone(), info);
-                    info!("Initial health check completed for {}: {:?}", provider_name, status.get(provider_name).unwrap().status);
+                    info!(
+                        "Initial health check completed for {}: {:?}",
+                        provider_name,
+                        status.get(provider_name).unwrap().status
+                    );
                 }
                 Err(e) => {
                     error!("Initial health check failed for {}: {}", provider_name, e);
                     // Insert unhealthy status
                     let unhealthy_info = ProviderHealthInfo {
                         status: ProviderHealthStatus::Unhealthy {
-                            reason: format!("Initial check failed: {}", e),
+                            reason: format!("Initial check failed: {e}"),
                             response_time: Duration::from_millis(0),
                         },
                         last_checked: Instant::now(),
@@ -166,7 +172,7 @@ impl HealthMonitor {
         };
 
         let provider_name_clone = provider_name.clone();
-        
+
         // Note: In a real implementation, we would spawn this as a background task
         // For now, we'll just log that monitoring would start
         info!(
@@ -182,9 +188,9 @@ impl HealthMonitor {
         checker: &Box<dyn ProviderHealthChecker>,
     ) -> anyhow::Result<ProviderHealthInfo> {
         let start_time = Instant::now();
-        
+
         debug!("Checking health for provider: {}", provider_name);
-        
+
         match checker.check_health().await {
             Ok(status) => {
                 let response_time = start_time.elapsed();
@@ -202,7 +208,7 @@ impl HealthMonitor {
                 };
 
                 let info = self.update_health_info(current_info, status, check_result);
-                
+
                 debug!(
                     "Health check completed for {}: {:?} ({}ms)",
                     provider_name,
@@ -214,8 +220,8 @@ impl HealthMonitor {
             }
             Err(e) => {
                 let response_time = start_time.elapsed();
-                let error_msg = format!("Health check failed: {}", e);
-                
+                let error_msg = format!("Health check failed: {e}");
+
                 let check_result = HealthCheckResult {
                     timestamp: start_time,
                     success: false,
@@ -223,10 +229,8 @@ impl HealthMonitor {
                     error: Some(error_msg.clone()),
                 };
 
-                let unhealthy_status = ProviderHealthStatus::Unhealthy {
-                    reason: error_msg,
-                    response_time,
-                };
+                let unhealthy_status =
+                    ProviderHealthStatus::Unhealthy { reason: error_msg, response_time };
 
                 let current_info = {
                     let health_status = self.health_status.read().await;
@@ -234,7 +238,7 @@ impl HealthMonitor {
                 };
 
                 let info = self.update_health_info(current_info, unhealthy_status, check_result);
-                
+
                 warn!(
                     "Health check failed for {}: {} ({}ms)",
                     provider_name,
@@ -255,13 +259,13 @@ impl HealthMonitor {
         check_result: HealthCheckResult,
     ) -> ProviderHealthInfo {
         let now = Instant::now();
-        
+
         match current_info {
             Some(mut info) => {
                 // Update status
                 info.status = new_status.clone();
                 info.last_checked = now;
-                
+
                 // Update failure/success counters
                 if check_result.success {
                     info.consecutive_successes += 1;
@@ -270,19 +274,21 @@ impl HealthMonitor {
                     info.consecutive_failures += 1;
                     info.consecutive_successes = 0;
                 }
-                
+
                 // Update check history (keep last 10)
                 info.check_history.push(check_result);
                 if info.check_history.len() > 10 {
                     info.check_history.remove(0);
                 }
-                
+
                 // Update average response time
-                let total_time: Duration = info.check_history.iter()
+                let total_time: Duration = info
+                    .check_history
+                    .iter()
                     .map(|result| result.response_time)
                     .sum();
                 info.avg_response_time = total_time / info.check_history.len() as u32;
-                
+
                 info
             }
             None => {
@@ -317,7 +323,9 @@ impl HealthMonitor {
     /// Get health status for a specific provider
     pub async fn get_provider_health(&self, provider_name: &str) -> Option<ProviderHealthStatus> {
         let health_status = self.health_status.read().await;
-        health_status.get(provider_name).map(|info| info.status.clone())
+        health_status
+            .get(provider_name)
+            .map(|info| info.status.clone())
     }
 
     /// Check if a provider is healthy
@@ -340,11 +348,13 @@ impl HealthMonitor {
 
     /// Force a health check for a specific provider
     pub async fn force_check(&self, provider_name: &str) -> anyhow::Result<ProviderHealthStatus> {
-        let checker = self.checkers.get(provider_name)
-            .with_context(|| format!("No health checker found for provider: {}", provider_name))?;
+        let checker = self
+            .checkers
+            .get(provider_name)
+            .with_context(|| format!("No health checker found for provider: {provider_name}"))?;
 
         let info = self.check_provider_health(provider_name, checker).await?;
-        
+
         // Update stored status
         {
             let mut health_status = self.health_status.write().await;
@@ -368,7 +378,7 @@ impl HealthMonitor {
                     results.insert(
                         provider_name.clone(),
                         ProviderHealthStatus::Unhealthy {
-                            reason: format!("Check failed: {}", e),
+                            reason: format!("Check failed: {e}"),
                             response_time: Duration::from_millis(0),
                         },
                     );
@@ -379,7 +389,8 @@ impl HealthMonitor {
         Ok(results)
     }
 
-    /// Get providers sorted by health (healthy first, then degraded, then unhealthy)
+    /// Get providers sorted by health (healthy first, then degraded, then
+    /// unhealthy)
     pub async fn get_providers_by_health(&self) -> Vec<(String, ProviderHealthStatus)> {
         let health_status = self.health_status.read().await;
         let mut providers: Vec<_> = health_status
@@ -423,7 +434,9 @@ impl ProviderHealthInfo {
             return 0.0;
         }
 
-        let successful_checks = self.check_history.iter()
+        let successful_checks = self
+            .check_history
+            .iter()
             .filter(|result| result.success)
             .count();
 
@@ -438,10 +451,12 @@ impl ProviderHealthInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::config::local_ai::LocalAiConfig;
-    use pretty_assertions::assert_eq;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_health_monitor_creation() {
@@ -528,19 +543,17 @@ mod tests {
             consecutive_failures: 0,
             consecutive_successes: 5,
             avg_response_time: Duration::from_millis(200),
-            check_history: vec![
-                HealthCheckResult {
-                    timestamp: Instant::now(),
-                    success: true,
-                    response_time: Duration::from_millis(200),
-                    error: None,
-                },
-            ],
+            check_history: vec![HealthCheckResult {
+                timestamp: Instant::now(),
+                success: true,
+                response_time: Duration::from_millis(200),
+                error: None,
+            }],
         };
 
         // Should perform well with lenient thresholds
         assert!(fixture.is_performing_well(Duration::from_millis(300), 0.8));
-        
+
         // Should not perform well with strict thresholds
         assert!(!fixture.is_performing_well(Duration::from_millis(100), 0.8));
     }

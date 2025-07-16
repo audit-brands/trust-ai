@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::Context as _;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -121,11 +120,11 @@ impl OllamaConfig {
             builder = builder.user_agent(user_agent);
         }
 
-        builder.build().map_err(|e| {
-            OllamaError::InvalidConfiguration {
-                message: format!("Failed to create HTTP client: {}", e),
-            }
-        })
+        builder
+            .build()
+            .map_err(|e| OllamaError::InvalidConfiguration {
+                message: format!("Failed to create HTTP client: {e}"),
+            })
     }
 
     /// Create an Ollama provider instance from this configuration
@@ -195,7 +194,11 @@ impl OllamaHealthCheck {
             }
         } else {
             HealthStatus::Unhealthy {
-                reason: format!("HTTP {}: {}", response.status(), response.status().canonical_reason().unwrap_or("Unknown")),
+                reason: format!(
+                    "HTTP {}: {}",
+                    response.status(),
+                    response.status().canonical_reason().unwrap_or("Unknown")
+                ),
                 response_time: duration,
             }
         };
@@ -212,8 +215,10 @@ impl OllamaHealthCheck {
 
         for host in hosts {
             for port in &ports {
-                let url = format!("http://{}:{}", host, port);
-                let config = OllamaConfig::new().with_base_url(url.clone()).with_timeout(5);
+                let url = format!("http://{host}:{port}");
+                let config = OllamaConfig::new()
+                    .with_base_url(url.clone())
+                    .with_timeout(5);
                 let health_check = OllamaHealthCheck::new(config);
 
                 if let Ok(HealthStatus::Healthy { .. }) = health_check.check_health().await {
@@ -249,7 +254,10 @@ pub enum HealthStatus {
 impl HealthStatus {
     /// Check if the service is usable
     pub fn is_usable(&self) -> bool {
-        matches!(self, HealthStatus::Healthy { .. } | HealthStatus::Degraded { .. })
+        matches!(
+            self,
+            HealthStatus::Healthy { .. } | HealthStatus::Degraded { .. }
+        )
     }
 
     /// Get response time
@@ -264,8 +272,9 @@ impl HealthStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_default_config() {

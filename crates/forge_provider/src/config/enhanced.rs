@@ -1,7 +1,8 @@
 //! Enhanced fallback features for Phase 7
-//! 
-//! This module provides intelligent enhancements to the fallback system implemented in Phase 6,
-//! including adaptive fallback strategies, user experience improvements, and advanced decision logic.
+//!
+//! This module provides intelligent enhancements to the fallback system
+//! implemented in Phase 6, including adaptive fallback strategies, user
+//! experience improvements, and advanced decision logic.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -395,10 +396,7 @@ impl Default for CostOptimization {
         Self {
             enabled: true,
             prefer_local_for_cost: true,
-            cloud_cost_ranking: vec![
-                "openai".to_string(),
-                "anthropic".to_string(),
-            ],
+            cloud_cost_ranking: vec!["openai".to_string(), "anthropic".to_string()],
             budget_aware_switching: false,
             daily_budget_limit: None,
         }
@@ -434,7 +432,7 @@ impl EnhancedFallbackEngine {
             self.config.base_config.clone(),
             self.local_config.clone(),
         );
-        
+
         let base_decision = base_engine.decide_provider(context, local_health).await;
 
         // Apply enhancements
@@ -446,10 +444,10 @@ impl EnhancedFallbackEngine {
         if self.config.adaptive_strategy {
             confidence += 0.1;
             reasoning.push("Adaptive strategy enabled".to_string());
-            
+
             // Analyze patterns and adjust decision
             if let Some(pattern_adjustment) = self.analyze_usage_patterns(context).await {
-                reasoning.push(format!("Pattern analysis: {}", pattern_adjustment));
+                reasoning.push(format!("Pattern analysis: {pattern_adjustment}"));
                 confidence += 0.1;
             }
         }
@@ -457,7 +455,10 @@ impl EnhancedFallbackEngine {
         // Performance ranking enhancement
         if self.config.performance_ranking {
             let performance_scores = self.calculate_performance_scores(local_health).await;
-            reasoning.push(format!("Performance ranking applied: {} providers analyzed", performance_scores.len()));
+            reasoning.push(format!(
+                "Performance ranking applied: {} providers analyzed",
+                performance_scores.len()
+            ));
             confidence += 0.05;
 
             // Add alternatives based on performance
@@ -465,8 +466,12 @@ impl EnhancedFallbackEngine {
                 if provider != base_decision.provider_name().unwrap_or("") {
                     alternatives.push(AlternativeOption {
                         provider_name: provider.clone(),
-                        rejection_reason: format!("Lower performance score: {:.2}", score),
-                        relative_score: score / performance_scores.values().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&1.0),
+                        rejection_reason: format!("Lower performance score: {score:.2}"),
+                        relative_score: score
+                            / performance_scores
+                                .values()
+                                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                                .unwrap_or(&1.0),
                     });
                 }
             }
@@ -474,8 +479,10 @@ impl EnhancedFallbackEngine {
 
         // UX optimizations
         if self.config.ux_optimizations.preemptive_fallback {
-            if let Some(preemptive_reason) = self.check_preemptive_fallback(context, local_health).await {
-                reasoning.push(format!("Preemptive fallback: {}", preemptive_reason));
+            if let Some(preemptive_reason) =
+                self.check_preemptive_fallback(context, local_health).await
+            {
+                reasoning.push(format!("Preemptive fallback: {preemptive_reason}"));
                 confidence += 0.05;
             }
         }
@@ -520,14 +527,14 @@ impl EnhancedFallbackEngine {
         // Time-based patterns
         if self.config.pattern_learning.time_patterns {
             if let Some(time_preference) = self.get_time_based_preference().await {
-                analysis.push(format!("Time preference: {}", time_preference));
+                analysis.push(format!("Time preference: {time_preference}"));
             }
         }
 
         // Model-specific patterns
         if self.config.pattern_learning.model_preferences {
             if let Some(model_preference) = self.get_model_preference(&context.model_id).await {
-                analysis.push(format!("Model preference: {}", model_preference));
+                analysis.push(format!("Model preference: {model_preference}"));
             }
         }
 
@@ -539,7 +546,10 @@ impl EnhancedFallbackEngine {
     }
 
     /// Calculate performance scores for providers
-    async fn calculate_performance_scores(&self, local_health: &[(String, ProviderHealthStatus)]) -> HashMap<String, f64> {
+    async fn calculate_performance_scores(
+        &self,
+        local_health: &[(String, ProviderHealthStatus)],
+    ) -> HashMap<String, f64> {
         let mut scores = HashMap::new();
 
         for (provider_name, health_status) in local_health {
@@ -562,13 +572,20 @@ impl EnhancedFallbackEngine {
     }
 
     /// Check for preemptive fallback conditions
-    async fn check_preemptive_fallback(&self, _context: &FallbackContext, local_health: &[(String, ProviderHealthStatus)]) -> Option<String> {
+    async fn check_preemptive_fallback(
+        &self,
+        _context: &FallbackContext,
+        local_health: &[(String, ProviderHealthStatus)],
+    ) -> Option<String> {
         for (provider_name, health_status) in local_health {
             if let ProviderHealthStatus::Degraded { .. } = health_status {
                 // Check if degradation is getting worse
                 if let Some(trend) = self.performance_history.trends.get(provider_name) {
-                    if matches!(trend.direction, TrendDirection::Degrading) && trend.strength > 0.7 {
-                        return Some(format!("Provider {} showing degrading trend", provider_name));
+                    if matches!(trend.direction, TrendDirection::Degrading) && trend.strength > 0.7
+                    {
+                        return Some(format!(
+                            "Provider {provider_name} showing degrading trend"
+                        ));
                     }
                 }
             }
@@ -579,26 +596,37 @@ impl EnhancedFallbackEngine {
     /// Calculate cost impact of a decision
     async fn calculate_cost_impact(&self, decision: &FallbackDecision) -> Option<CostImpact> {
         if let Some(provider_name) = decision.provider_name() {
-            let cost_per_request = self.cost_tracker.cost_per_request.get(provider_name).copied().unwrap_or(0.0);
-            
+            let cost_per_request = self
+                .cost_tracker
+                .cost_per_request
+                .get(provider_name)
+                .copied()
+                .unwrap_or(0.0);
+
             // Calculate savings compared to most expensive option
-            let max_cost = self.cost_tracker.cost_per_request.values().max_by(|a, b| a.partial_cmp(b).unwrap()).copied().unwrap_or(0.0);
+            let max_cost = self
+                .cost_tracker
+                .cost_per_request
+                .values()
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .copied()
+                .unwrap_or(0.0);
             let cost_savings = max_cost - cost_per_request;
 
             let budget_impact = self.assess_budget_impact(cost_per_request).await;
 
-            Some(CostImpact {
-                cost_per_request,
-                cost_savings,
-                budget_impact,
-            })
+            Some(CostImpact { cost_per_request, cost_savings, budget_impact })
         } else {
             None
         }
     }
 
     /// Predict performance for a decision
-    async fn predict_performance(&self, decision: &FallbackDecision, _context: &FallbackContext) -> Option<PerformancePrediction> {
+    async fn predict_performance(
+        &self,
+        decision: &FallbackDecision,
+        _context: &FallbackContext,
+    ) -> Option<PerformancePrediction> {
         if let Some(provider_name) = decision.provider_name() {
             if let Some(metrics) = self.performance_history.provider_metrics.get(provider_name) {
                 let expected_response_time = self.calculate_average_response_time(metrics);
@@ -630,7 +658,10 @@ impl EnhancedFallbackEngine {
     /// Get model-specific preference
     async fn get_model_preference(&self, model_id: &str) -> Option<String> {
         if let Some(pattern) = self.usage_patterns.model_patterns.get(model_id) {
-            pattern.preferred_providers.first().map(|p| format!("Prefer {} for {}", p, model_id))
+            pattern
+                .preferred_providers
+                .first()
+                .map(|p| format!("Prefer {p} for {model_id}"))
         } else {
             None
         }
@@ -644,9 +675,7 @@ impl EnhancedFallbackEngine {
             let remaining_percentage = (remaining / daily_limit) * 100.0;
 
             if cost_per_request > remaining {
-                BudgetImpact::ExceedsBudget {
-                    overage_amount: cost_per_request - remaining,
-                }
+                BudgetImpact::ExceedsBudget { overage_amount: cost_per_request - remaining }
             } else if remaining_percentage < 20.0 {
                 BudgetImpact::ApproachingLimit { remaining_percentage }
             } else {
@@ -663,7 +692,11 @@ impl EnhancedFallbackEngine {
             return Duration::from_millis(1000); // Default fallback
         }
 
-        let total: Duration = metrics.response_times.iter().map(|(_, duration)| *duration).sum();
+        let total: Duration = metrics
+            .response_times
+            .iter()
+            .map(|(_, duration)| *duration)
+            .sum();
         total / metrics.response_times.len() as u32
     }
 
@@ -693,12 +726,22 @@ impl EnhancedFallbackEngine {
             return 0.8; // Default fallback
         }
 
-        let total: f64 = metrics.reliability_scores.iter().map(|(_, score)| *score).sum();
+        let total: f64 = metrics
+            .reliability_scores
+            .iter()
+            .map(|(_, score)| *score)
+            .sum();
         total / metrics.reliability_scores.len() as f64
     }
 
     /// Record usage for pattern learning
-    pub async fn record_usage(&mut self, provider_name: &str, context: &FallbackContext, success: bool, response_time: Duration) {
+    pub async fn record_usage(
+        &mut self,
+        provider_name: &str,
+        context: &FallbackContext,
+        success: bool,
+        response_time: Duration,
+    ) {
         if !self.config.pattern_learning.enabled {
             return;
         }
@@ -712,7 +755,8 @@ impl EnhancedFallbackEngine {
         );
 
         // Update performance history
-        self.update_performance_history(provider_name, success, response_time).await;
+        self.update_performance_history(provider_name, success, response_time)
+            .await;
 
         // Update usage patterns
         self.update_usage_patterns(provider_name, context).await;
@@ -724,8 +768,15 @@ impl EnhancedFallbackEngine {
     }
 
     /// Update performance history
-    async fn update_performance_history(&mut self, provider_name: &str, success: bool, response_time: Duration) {
-        let metrics = self.performance_history.provider_metrics
+    async fn update_performance_history(
+        &mut self,
+        provider_name: &str,
+        success: bool,
+        response_time: Duration,
+    ) {
+        let metrics = self
+            .performance_history
+            .provider_metrics
             .entry(provider_name.to_string())
             .or_insert_with(|| ProviderPerformanceMetrics {
                 response_times: Vec::new(),
@@ -736,7 +787,9 @@ impl EnhancedFallbackEngine {
 
         let now = Instant::now();
         metrics.response_times.push((now, response_time));
-        metrics.success_rates.push((now, if success { 1.0 } else { 0.0 }));
+        metrics
+            .success_rates
+            .push((now, if success { 1.0 } else { 0.0 }));
 
         // Keep only recent data (last 1000 entries)
         if metrics.response_times.len() > 1000 {
@@ -750,7 +803,9 @@ impl EnhancedFallbackEngine {
     /// Update usage patterns
     async fn update_usage_patterns(&mut self, provider_name: &str, context: &FallbackContext) {
         // Update model patterns
-        let model_pattern = self.usage_patterns.model_patterns
+        let model_pattern = self
+            .usage_patterns
+            .model_patterns
             .entry(context.model_id.clone())
             .or_insert_with(|| ModelPattern {
                 preferred_providers: Vec::new(),
@@ -759,24 +814,40 @@ impl EnhancedFallbackEngine {
             });
 
         model_pattern.usage_frequency += 1.0;
-        
-        if !model_pattern.preferred_providers.contains(&provider_name.to_string()) {
-            model_pattern.preferred_providers.push(provider_name.to_string());
+
+        if !model_pattern
+            .preferred_providers
+            .contains(&provider_name.to_string())
+        {
+            model_pattern
+                .preferred_providers
+                .push(provider_name.to_string());
         }
     }
 
     /// Update cost tracking
     async fn update_cost_tracking(&mut self, provider_name: &str) {
-        // Simplified cost tracking - in real implementation, this would integrate with billing APIs
+        // Simplified cost tracking - in real implementation, this would integrate with
+        // billing APIs
         let cost = match provider_name {
             "cloud:openai" => 0.002, // Example cost per request
             "cloud:anthropic" => 0.003,
             _ => 0.001,
         };
 
-        *self.cost_tracker.daily_costs.entry(provider_name.to_string()).or_insert(0.0) += cost;
-        *self.cost_tracker.monthly_costs.entry(provider_name.to_string()).or_insert(0.0) += cost;
-        self.cost_tracker.cost_per_request.insert(provider_name.to_string(), cost);
+        *self
+            .cost_tracker
+            .daily_costs
+            .entry(provider_name.to_string())
+            .or_insert(0.0) += cost;
+        *self
+            .cost_tracker
+            .monthly_costs
+            .entry(provider_name.to_string())
+            .or_insert(0.0) += cost;
+        self.cost_tracker
+            .cost_per_request
+            .insert(provider_name.to_string(), cost);
 
         self.cost_tracker.budget_status.daily_used += cost;
         self.cost_tracker.budget_status.monthly_used += cost;
@@ -822,9 +893,10 @@ impl CostTracker {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::config::local_ai::LocalAiConfig;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_enhanced_fallback_config_default() {
@@ -851,18 +923,24 @@ mod tests {
         let config = EnhancedFallbackConfig::default();
         let local_config = LocalAiConfig::new();
         let engine = EnhancedFallbackEngine::new(config, local_config);
-        
+
         let local_health = vec![
-            ("ollama".to_string(), ProviderHealthStatus::Healthy {
-                response_time: Duration::from_millis(100),
-                models_available: 5,
-                additional_info: None,
-            }),
-            ("local_ai".to_string(), ProviderHealthStatus::Degraded {
-                response_time: Duration::from_millis(500),
-                reason: "High load".to_string(),
-                models_available: 3,
-            }),
+            (
+                "ollama".to_string(),
+                ProviderHealthStatus::Healthy {
+                    response_time: Duration::from_millis(100),
+                    models_available: 5,
+                    additional_info: None,
+                },
+            ),
+            (
+                "local_ai".to_string(),
+                ProviderHealthStatus::Degraded {
+                    response_time: Duration::from_millis(500),
+                    reason: "High load".to_string(),
+                    models_available: 3,
+                },
+            ),
         ];
 
         let scores = engine.calculate_performance_scores(&local_health).await;

@@ -13,7 +13,7 @@ use crate::ollama::error::OllamaError;
 use crate::ollama::Ollama;
 
 /// Integration test suite for Ollama provider
-/// 
+///
 /// This module contains comprehensive integration tests that validate:
 /// - Real Ollama service integration (when available)
 /// - Mock service testing for CI/CD compatibility
@@ -43,11 +43,7 @@ impl OllamaIntegrationTest {
         // Try to detect real Ollama service
         let real_service_url = Self::detect_ollama_service(&client).await;
 
-        Ok(Self {
-            real_service_url,
-            mock_server,
-            client,
-        })
+        Ok(Self { real_service_url, mock_server, client })
     }
 
     /// Detect if a real Ollama service is available
@@ -100,13 +96,16 @@ impl OllamaIntegrationTest {
         if let Some(ollama) = self.create_real_ollama()? {
             let models = ollama.models().await?;
             tracing::info!("Found {} models in real Ollama service", models.len());
-            
+
             // Validate model structure
             for model in &models {
-                assert!(!model.id.as_str().is_empty(), "Model ID should not be empty");
+                assert!(
+                    !model.id.as_str().is_empty(),
+                    "Model ID should not be empty"
+                );
                 assert!(!model.name.is_empty(), "Model name should not be empty");
             }
-            
+
             Ok(())
         } else {
             tracing::info!("Skipping real model discovery test - no service available");
@@ -127,18 +126,25 @@ impl OllamaIntegrationTest {
             let model_id = ModelId::new(&models[0].id.as_str());
             let context = Context::default()
                 .add_message(ContextMessage::system("You are a helpful assistant."))
-                .add_message(ContextMessage::user("Say 'Hello, World!' and nothing else.", model_id.clone().into()));
+                .add_message(ContextMessage::user(
+                    "Say 'Hello, World!' and nothing else.",
+                    model_id.clone().into(),
+                ));
 
             // Test with timeout to prevent hanging
-            let stream = timeout(Duration::from_secs(60), ollama.chat(&model_id, context)).await??;
-            
+            let stream =
+                timeout(Duration::from_secs(60), ollama.chat(&model_id, context)).await??;
+
             let messages: Vec<_> = stream.take(10).collect().await;
             assert!(!messages.is_empty(), "Should receive at least one message");
-            
+
             // Validate message structure
             for message in messages {
                 let msg = message?;
-                assert!(!msg.content.is_empty(), "Message content should not be empty");
+                assert!(
+                    !msg.content.is_empty(),
+                    "Message content should not be empty"
+                );
             }
 
             tracing::info!("Real chat completion test passed");
@@ -152,7 +158,8 @@ impl OllamaIntegrationTest {
     /// Test service unavailable scenario
     pub async fn test_service_unavailable(&mut self) -> anyhow::Result<()> {
         // Mock a service unavailable response
-        let _mock = self.mock_server
+        let _mock = self
+            .mock_server
             .mock_ollama_models(json!({"error": "Service unavailable"}), 503)
             .await;
 
@@ -167,18 +174,19 @@ impl OllamaIntegrationTest {
     /// Test invalid model request
     pub async fn test_invalid_model_request(&mut self) -> anyhow::Result<()> {
         // Mock a successful models response
-        let _mock = self.mock_server
+        let _mock = self
+            .mock_server
             .mock_ollama_models(json!({"models": []}), 200)
             .await;
 
         let ollama = self.create_mock_ollama()?;
         let model_id = ModelId::new("nonexistent-model");
-        let context = Context::default()
-            .add_message(ContextMessage::user("Test", model_id.clone().into()));
+        let context =
+            Context::default().add_message(ContextMessage::user("Test", model_id.clone().into()));
 
         // This should work with mock but would fail with real service
         let result = ollama.chat(&model_id, context).await;
-        
+
         // With mock server, this might succeed but with real service it would fail
         tracing::info!("Invalid model request test completed: {:?}", result.is_ok());
         Ok(())
@@ -187,7 +195,8 @@ impl OllamaIntegrationTest {
     /// Test malformed response handling
     pub async fn test_malformed_response(&mut self) -> anyhow::Result<()> {
         // Mock a malformed JSON response
-        let _mock = self.mock_server
+        let _mock = self
+            .mock_server
             .mock_ollama_models(json!({"invalid": "structure"}), 200)
             .await;
 
@@ -220,7 +229,8 @@ impl OllamaIntegrationTest {
 
     /// Test provider switching scenario
     pub async fn test_provider_switching(&self) -> anyhow::Result<()> {
-        // Test that we can create multiple Ollama instances with different configurations
+        // Test that we can create multiple Ollama instances with different
+        // configurations
         let ollama1 = self.create_mock_ollama()?;
         let ollama2 = Ollama::builder()
             .client(self.client.clone())
@@ -248,8 +258,10 @@ impl OllamaIntegrationTest {
             }
 
             let model_id = ModelId::new(&models[0].id.as_str());
-            let context = Context::default()
-                .add_message(ContextMessage::user("Count from 1 to 5", model_id.clone().into()));
+            let context = Context::default().add_message(ContextMessage::user(
+                "Count from 1 to 5",
+                model_id.clone().into(),
+            ));
 
             let stream = ollama.chat(&model_id, context).await?;
             let messages: Vec<_> = stream.take(20).collect().await; // Limit to prevent infinite streams
@@ -271,8 +283,11 @@ impl OllamaIntegrationTest {
             let duration = start.elapsed();
 
             // Model discovery should complete within reasonable time
-            assert!(duration < Duration::from_secs(10), 
-                "Model discovery took too long: {:?}", duration);
+            assert!(
+                duration < Duration::from_secs(10),
+                "Model discovery took too long: {:?}",
+                duration
+            );
 
             tracing::info!("Model discovery completed in {:?}", duration);
             Ok(())
@@ -306,8 +321,9 @@ impl OllamaIntegrationTest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_integration_test_creation() {

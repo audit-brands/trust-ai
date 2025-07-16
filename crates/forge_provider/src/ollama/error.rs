@@ -12,7 +12,9 @@ pub enum OllamaError {
     },
 
     /// Service unavailable errors
-    #[error("Ollama service is unavailable. Please ensure Ollama is running and accessible at {url}")]
+    #[error(
+        "Ollama service is unavailable. Please ensure Ollama is running and accessible at {url}"
+    )]
     ServiceUnavailable { url: String },
 
     /// Authentication and permission errors
@@ -166,42 +168,40 @@ impl OllamaError {
         match self {
             OllamaError::ServiceUnavailable { url } => {
                 format!(
-                    "Ollama service is not running. Please start Ollama and ensure it's accessible at {}",
-                    url
+                    "Ollama service is not running. Please start Ollama and ensure it's accessible at {url}"
                 )
             }
             OllamaError::ConnectionFailed { url, .. } => {
                 format!(
-                    "Cannot connect to Ollama service at {}. Please check that Ollama is running and the URL is correct",
-                    url
+                    "Cannot connect to Ollama service at {url}. Please check that Ollama is running and the URL is correct"
                 )
             }
             OllamaError::ModelNotFound { model } => {
                 format!(
-                    "Model '{}' is not available. Use 'ollama list' to see available models or 'ollama pull {}' to download it",
-                    model, model
+                    "Model '{model}' is not available. Use 'ollama list' to see available models or 'ollama pull {model}' to download it"
                 )
             }
             OllamaError::ModelLoading { model } => {
                 format!(
-                    "Model '{}' is currently loading. Please wait a moment and try again",
-                    model
+                    "Model '{model}' is currently loading. Please wait a moment and try again"
                 )
             }
             OllamaError::AuthenticationFailed { .. } => {
-                "Authentication failed. Please check your Ollama configuration and permissions".to_string()
+                "Authentication failed. Please check your Ollama configuration and permissions"
+                    .to_string()
             }
             OllamaError::RateLimitExceeded => {
                 "Too many requests. Please wait a moment before trying again".to_string()
             }
             OllamaError::RequestTimeout { timeout_seconds } => {
                 format!(
-                    "Request timed out after {} seconds. The model might be too large or the system is under heavy load",
-                    timeout_seconds
+                    "Request timed out after {timeout_seconds} seconds. The model might be too large or the system is under heavy load"
                 )
             }
             OllamaError::InvalidConfiguration { message } => {
-                format!("Configuration error: {}. Please check your Ollama settings", message)
+                format!(
+                    "Configuration error: {message}. Please check your Ollama settings"
+                )
             }
             _ => self.to_string(),
         }
@@ -221,17 +221,16 @@ impl From<reqwest::Error> for OllamaError {
                 source: error,
             }
         } else {
-            OllamaError::Unknown {
-                message: error.to_string(),
-            }
+            OllamaError::Unknown { message: error.to_string() }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_service_unavailable_detection() {

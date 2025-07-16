@@ -5,7 +5,6 @@ pub mod enhanced;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-
 use tracing::{debug, info, warn};
 
 use crate::config::fallback::{FallbackConfig, FallbackContext, FallbackDecision, FallbackEngine};
@@ -113,10 +112,10 @@ impl ProviderSelector {
     /// Initialize the provider selector
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         info!("Initializing provider selector");
-        
+
         // Start health monitoring
         self.health_monitor.start().await?;
-        
+
         // Initialize metrics for all configured providers
         for provider_name in self.local_config.providers.keys() {
             self.provider_metrics.insert(
@@ -128,12 +127,15 @@ impl ProviderSelector {
         // Initialize metrics for cloud providers
         for provider_name in &self.fallback_config.cloud_providers {
             self.provider_metrics.insert(
-                format!("cloud:{}", provider_name),
+                format!("cloud:{provider_name}"),
                 ProviderMetrics::new(ProviderType::Cloud),
             );
         }
 
-        info!("Provider selector initialized with {} providers", self.provider_metrics.len());
+        info!(
+            "Provider selector initialized with {} providers",
+            self.provider_metrics.len()
+        );
         Ok(())
     }
 
@@ -172,7 +174,8 @@ impl ProviderSelector {
             .with_consecutive_failures(context.consecutive_failures);
 
         // Make fallback decision
-        let decision = self.fallback_engine
+        let decision = self
+            .fallback_engine
             .decide_provider(&fallback_context, &local_health)
             .await;
 
@@ -203,7 +206,7 @@ impl ProviderSelector {
                 if let Some(fallback_time) = self.last_fallback_time {
                     let time_since_fallback = fallback_time.elapsed();
                     let local_health: Vec<_> = self.health_monitor.get_providers_by_health().await;
-                    
+
                     return self.fallback_engine.should_return_to_local(
                         current,
                         &local_health,
@@ -223,21 +226,19 @@ impl ProviderSelector {
         _context: &SelectionContext,
     ) -> anyhow::Result<ProviderSelection> {
         match decision {
-            FallbackDecision::UseLocal { provider_name, reason } => {
-                Ok(ProviderSelection {
-                    provider_name,
-                    provider_type: ProviderType::Local,
-                    reason,
-                    is_fallback: false,
-                    local_health: Some(local_health.iter().cloned().collect()),
-                })
-            }
+            FallbackDecision::UseLocal { provider_name, reason } => Ok(ProviderSelection {
+                provider_name,
+                provider_type: ProviderType::Local,
+                reason,
+                is_fallback: false,
+                local_health: Some(local_health.iter().cloned().collect()),
+            }),
             FallbackDecision::UseCloud { provider_name, reason, .. } => {
                 // Mark fallback time
                 self.last_fallback_time = Some(Instant::now());
-                
+
                 Ok(ProviderSelection {
-                    provider_name: format!("cloud:{}", provider_name),
+                    provider_name: format!("cloud:{provider_name}"),
                     provider_type: ProviderType::Cloud,
                     reason,
                     is_fallback: true,
@@ -273,13 +274,13 @@ impl ProviderSelector {
     pub fn record_success(&mut self, provider_name: &str, response_time: Duration) {
         if let Some(metrics) = self.provider_metrics.get_mut(provider_name) {
             metrics.successful_requests += 1;
-            
+
             // Update average response time (simple moving average)
             let total_requests = metrics.total_requests as f64;
             let current_avg = metrics.avg_response_time.as_millis() as f64;
             let new_time = response_time.as_millis() as f64;
             let new_avg = (current_avg * (total_requests - 1.0) + new_time) / total_requests;
-            
+
             metrics.avg_response_time = Duration::from_millis(new_avg as u64);
         }
 
@@ -297,7 +298,7 @@ impl ProviderSelector {
             error = error,
             "Recorded failed request"
         );
-        
+
         // Metrics are already updated in update_selection_metrics
         // Failure tracking is handled by the health monitor
     }
@@ -330,7 +331,8 @@ impl ProviderSelector {
     /// Check if a specific provider is available
     pub async fn is_provider_available(&self, provider_name: &str) -> bool {
         if provider_name.starts_with("cloud:") {
-            // For cloud providers, assume available unless we have metrics showing otherwise
+            // For cloud providers, assume available unless we have metrics showing
+            // otherwise
             true
         } else {
             self.health_monitor.is_provider_usable(provider_name).await
@@ -340,7 +342,7 @@ impl ProviderSelector {
     /// Get recommended providers for a specific model
     pub async fn get_recommended_providers(&self, model_id: &str) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         // First, add healthy local providers that support the model
         let local_health = self.health_monitor.get_providers_by_health().await;
         for (provider_name, status) in local_health {
@@ -348,12 +350,12 @@ impl ProviderSelector {
                 recommendations.push(provider_name);
             }
         }
-        
+
         // Then add cloud providers
         for cloud_provider in &self.fallback_config.cloud_providers {
-            recommendations.push(format!("cloud:{}", cloud_provider));
+            recommendations.push(format!("cloud:{cloud_provider}"));
         }
-        
+
         recommendations
     }
 
@@ -363,10 +365,9 @@ impl ProviderSelector {
             if provider_config.preferred_models.is_empty() {
                 return true;
             }
-            
+
             provider_config.preferred_models.iter().any(|preferred| {
-                preferred == model_id || 
-                model_id.starts_with(&preferred.replace(":latest", ""))
+                preferred == model_id || model_id.starts_with(&preferred.replace(":latest", ""))
             })
         } else {
             // For cloud providers, assume model support
@@ -484,23 +485,25 @@ impl UserPreferences {
 
 // Re-export enhanced features
 pub use enhanced::{
-    EnhancedProviderSelector, EnhancedProviderSelection, SmartRetryConfig,
-    UserFeedback, FeedbackType, SelectionOutcome,
+    EnhancedProviderSelection, EnhancedProviderSelector, FeedbackType, SelectionOutcome,
+    SmartRetryConfig, UserFeedback,
 };
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::config::local_ai::LocalAiConfig;
-    use crate::config::fallback::FallbackConfig;
-    use pretty_assertions::assert_eq;
     use std::time::Duration;
+
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::config::fallback::FallbackConfig;
+    use crate::config::local_ai::LocalAiConfig;
 
     #[tokio::test]
     async fn test_provider_selector_creation() {
         let local_config = LocalAiConfig::with_default_ollama();
         let fallback_config = FallbackConfig::default();
-        
+
         let actual = ProviderSelector::new(local_config, fallback_config).await;
         assert!(actual.is_ok());
     }
@@ -510,7 +513,7 @@ mod tests {
         let mut fixture = ProviderMetrics::new(ProviderType::Local);
         fixture.total_requests = 10;
         fixture.successful_requests = 8;
-        
+
         let actual = fixture.success_rate();
         let expected = 0.8;
         assert_eq!(actual, expected);

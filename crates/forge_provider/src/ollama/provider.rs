@@ -9,7 +9,6 @@ use tracing::debug;
 use super::error::OllamaError;
 use super::request::ChatRequest;
 use super::response::{ChatResponse, ListModelsResponse};
-
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
@@ -94,15 +93,13 @@ impl Ollama {
                         reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
                             let status = response.status();
                             let body_text = response.text().await.ok();
-                            
                             // Convert to appropriate OllamaError
                             let ollama_error = match status.as_u16() {
                                 404 => OllamaError::model_not_found(model_inner.as_str().to_string()),
                                 503 => OllamaError::service_unavailable(url_inner.to_string()),
-                                _ => OllamaError::http_error(status.as_u16(), 
+                                _ => OllamaError::http_error(status.as_u16(),
                                     body_text.clone().unwrap_or_else(|| "Unknown error".to_string())),
                             };
-                            
                             Some(Err(anyhow::anyhow!(ollama_error)).with_context(
                                 || match body_text {
                                     Some(body) => {
@@ -146,11 +143,11 @@ impl Ollama {
         match result {
             Err(error) => {
                 tracing::error!(error = ?error, "Failed to fetch models");
-                
+
                 // Get status before moving error
                 let error_status = error.status();
                 let error_msg = error.to_string();
-                
+
                 // Convert to OllamaError for better user experience
                 let ollama_error = if error.is_timeout() {
                     OllamaError::RequestTimeout { timeout_seconds: 30 }
@@ -159,7 +156,7 @@ impl Ollama {
                 } else {
                     OllamaError::Unknown { message: error_msg }
                 };
-                
+
                 let ctx_msg = format_http_context(error_status, "GET", &url);
                 Err(anyhow::anyhow!(ollama_error))
                     .with_context(|| ctx_msg)
@@ -168,13 +165,15 @@ impl Ollama {
             Ok(response) => {
                 let status = response.status();
                 let ctx_msg = format_http_context(Some(response.status()), "GET", &url);
-                
+
                 // Handle different status codes with appropriate errors
                 if status == 503 {
-                    return Err(anyhow::anyhow!(OllamaError::service_unavailable(url.to_string())))
-                        .with_context(|| ctx_msg);
+                    return Err(anyhow::anyhow!(OllamaError::service_unavailable(
+                        url.to_string()
+                    )))
+                    .with_context(|| ctx_msg);
                 }
-                
+
                 let text = response
                     .text()
                     .await
@@ -194,7 +193,7 @@ impl Ollama {
                         500..=599 => OllamaError::service_unavailable(url.to_string()),
                         _ => OllamaError::http_error(status.as_u16(), text),
                     };
-                    
+
                     Err(anyhow::anyhow!(ollama_error))
                         .with_context(|| ctx_msg)
                         .with_context(|| "Failed to fetch the models")

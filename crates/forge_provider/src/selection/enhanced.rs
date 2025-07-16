@@ -1,7 +1,8 @@
 //! Enhanced provider selection with intelligent fallback features
-//! 
-//! This module extends the provider selection system from Phase 6 with Phase 7 enhancements,
-//! providing adaptive decision-making, pattern learning, and improved user experience.
+//!
+//! This module extends the provider selection system from Phase 6 with Phase 7
+//! enhancements, providing adaptive decision-making, pattern learning, and
+//! improved user experience.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -126,7 +127,8 @@ impl EnhancedProviderSelector {
         local_config: LocalAiConfig,
         enhanced_config: EnhancedFallbackConfig,
     ) -> Result<Self> {
-        let enhanced_engine = EnhancedFallbackEngine::new(enhanced_config.clone(), local_config.clone());
+        let enhanced_engine =
+            EnhancedFallbackEngine::new(enhanced_config.clone(), local_config.clone());
         let health_monitor = HealthMonitor::new(local_config.clone()).await?;
 
         Ok(Self {
@@ -145,10 +147,10 @@ impl EnhancedProviderSelector {
     /// Initialize the enhanced provider selector
     pub async fn initialize(&mut self) -> Result<()> {
         info!("Initializing enhanced provider selector");
-        
+
         // Start health monitoring
         self.health_monitor.start().await?;
-        
+
         // Initialize metrics for all configured providers
         for provider_name in self.local_config.providers.keys() {
             self.provider_metrics.insert(
@@ -160,12 +162,15 @@ impl EnhancedProviderSelector {
         // Initialize metrics for cloud providers
         for provider_name in &self.enhanced_config.base_config.cloud_providers {
             self.provider_metrics.insert(
-                format!("cloud:{}", provider_name),
+                format!("cloud:{provider_name}"),
                 ProviderMetrics::new(ProviderType::Cloud),
             );
         }
 
-        info!("Enhanced provider selector initialized with {} providers", self.provider_metrics.len());
+        info!(
+            "Enhanced provider selector initialized with {} providers",
+            self.provider_metrics.len()
+        );
         Ok(())
     }
 
@@ -199,19 +204,19 @@ impl EnhancedProviderSelector {
             .with_consecutive_failures(context.consecutive_failures);
 
         // Make enhanced fallback decision
-        let enhanced_decision = self.enhanced_engine
+        let enhanced_decision = self
+            .enhanced_engine
             .decide_provider_enhanced(&fallback_context, &local_health)
             .await;
 
         // Convert to enhanced selection
-        let enhanced_selection = self.convert_to_enhanced_selection(
-            enhanced_decision,
-            &local_health,
-            &context,
-        ).await?;
+        let enhanced_selection = self
+            .convert_to_enhanced_selection(enhanced_decision, &local_health, &context)
+            .await?;
 
         // Record selection in history
-        self.record_selection_history(&context, &enhanced_selection).await;
+        self.record_selection_history(&context, &enhanced_selection)
+            .await;
 
         // Update current provider
         self.current_provider = Some(enhanced_selection.selection.provider_name.clone());
@@ -237,14 +242,20 @@ impl EnhancedProviderSelector {
     }
 
     /// Check for seamless switching opportunities
-    async fn check_seamless_switching(&self, _context: &SelectionContext) -> Option<EnhancedProviderSelection> {
+    async fn check_seamless_switching(
+        &self,
+        _context: &SelectionContext,
+    ) -> Option<EnhancedProviderSelection> {
         if let Some(ref current) = self.current_provider {
             // Check if current provider is still optimal
             if let Some(metrics) = self.provider_metrics.get(current) {
                 if metrics.is_performing_well(0.8, Duration::from_secs(5)) {
                     // Current provider is still good, continue using it
-                    debug!("Seamless switching: continuing with current provider {}", current);
-                    
+                    debug!(
+                        "Seamless switching: continuing with current provider {}",
+                        current
+                    );
+
                     // Create a simple selection to continue with current provider
                     // This would be implemented based on the actual selection logic
                     return None; // Simplified for now
@@ -263,24 +274,20 @@ impl EnhancedProviderSelector {
     ) -> Result<EnhancedProviderSelection> {
         // Convert base decision to provider selection
         let selection = match &enhanced_decision.decision {
-            FallbackDecision::UseLocal { provider_name, reason } => {
-                ProviderSelection {
-                    provider_name: provider_name.clone(),
-                    provider_type: ProviderType::Local,
-                    reason: reason.clone(),
-                    is_fallback: false,
-                    local_health: Some(local_health.iter().cloned().collect()),
-                }
-            }
-            FallbackDecision::UseCloud { provider_name, reason, .. } => {
-                ProviderSelection {
-                    provider_name: format!("cloud:{}", provider_name),
-                    provider_type: ProviderType::Cloud,
-                    reason: reason.clone(),
-                    is_fallback: true,
-                    local_health: Some(local_health.iter().cloned().collect()),
-                }
-            }
+            FallbackDecision::UseLocal { provider_name, reason } => ProviderSelection {
+                provider_name: provider_name.clone(),
+                provider_type: ProviderType::Local,
+                reason: reason.clone(),
+                is_fallback: false,
+                local_health: Some(local_health.iter().cloned().collect()),
+            },
+            FallbackDecision::UseCloud { provider_name, reason, .. } => ProviderSelection {
+                provider_name: format!("cloud:{provider_name}"),
+                provider_type: ProviderType::Cloud,
+                reason: reason.clone(),
+                is_fallback: true,
+                local_health: Some(local_health.iter().cloned().collect()),
+            },
             FallbackDecision::RequireManual { reason, available_options } => {
                 return Err(anyhow::anyhow!(
                     "Manual provider selection required: {}. Available options: {:?}",
@@ -298,10 +305,13 @@ impl EnhancedProviderSelector {
         };
 
         // Calculate recommendation strength
-        let recommendation_strength = self.calculate_recommendation_strength(&enhanced_decision, context).await;
+        let recommendation_strength = self
+            .calculate_recommendation_strength(&enhanced_decision, context)
+            .await;
 
         // Generate suggested alternatives
-        let suggested_alternatives = enhanced_decision.alternatives
+        let suggested_alternatives = enhanced_decision
+            .alternatives
             .iter()
             .take(3)
             .map(|alt| alt.provider_name.clone())
@@ -321,7 +331,11 @@ impl EnhancedProviderSelector {
     }
 
     /// Calculate recommendation strength
-    async fn calculate_recommendation_strength(&self, enhanced_decision: &EnhancedFallbackDecision, _context: &SelectionContext) -> f64 {
+    async fn calculate_recommendation_strength(
+        &self,
+        enhanced_decision: &EnhancedFallbackDecision,
+        _context: &SelectionContext,
+    ) -> f64 {
         let mut strength = enhanced_decision.confidence;
 
         // Boost strength based on performance prediction
@@ -346,7 +360,10 @@ impl EnhancedProviderSelector {
     }
 
     /// Generate learning insights
-    async fn generate_learning_insights(&self, enhanced_decision: &EnhancedFallbackDecision) -> Vec<String> {
+    async fn generate_learning_insights(
+        &self,
+        enhanced_decision: &EnhancedFallbackDecision,
+    ) -> Vec<String> {
         let mut insights = Vec::new();
 
         // Confidence-based insights
@@ -359,7 +376,10 @@ impl EnhancedProviderSelector {
         // Cost-based insights
         if let Some(ref cost_impact) = enhanced_decision.cost_impact {
             if cost_impact.cost_savings > 0.001 {
-                insights.push(format!("Cost savings: ${:.4} per request", cost_impact.cost_savings));
+                insights.push(format!(
+                    "Cost savings: ${:.4} per request",
+                    cost_impact.cost_savings
+                ));
             }
         }
 
@@ -377,7 +397,11 @@ impl EnhancedProviderSelector {
     }
 
     /// Record selection in history for learning
-    async fn record_selection_history(&mut self, context: &SelectionContext, selection: &EnhancedProviderSelection) {
+    async fn record_selection_history(
+        &mut self,
+        context: &SelectionContext,
+        selection: &EnhancedProviderSelection,
+    ) {
         let entry = SelectionHistoryEntry {
             timestamp: Instant::now(),
             context: context.clone(),
@@ -394,8 +418,15 @@ impl EnhancedProviderSelector {
     }
 
     /// Generate user notification
-    async fn generate_user_notification(&self, selection: &EnhancedProviderSelection) -> Option<String> {
-        if !self.enhanced_config.ux_optimizations.context_aware_notifications {
+    async fn generate_user_notification(
+        &self,
+        selection: &EnhancedProviderSelection,
+    ) -> Option<String> {
+        if !self
+            .enhanced_config
+            .ux_optimizations
+            .context_aware_notifications
+        {
             return None;
         }
 
@@ -403,7 +434,8 @@ impl EnhancedProviderSelector {
 
         // Fallback notification
         if selection.selection.is_fallback {
-            notifications.push("Switched to cloud provider due to local unavailability".to_string());
+            notifications
+                .push("Switched to cloud provider due to local unavailability".to_string());
         }
 
         // Performance notification
@@ -416,13 +448,18 @@ impl EnhancedProviderSelector {
         // Cost notification
         if let Some(ref cost_impact) = selection.enhanced_decision.cost_impact {
             if cost_impact.cost_savings > 0.01 {
-                notifications.push(format!("Cost-optimized selection saves ${:.3}", cost_impact.cost_savings));
+                notifications.push(format!(
+                    "Cost-optimized selection saves ${:.3}",
+                    cost_impact.cost_savings
+                ));
             }
         }
 
         // Low confidence notification
         if selection.enhanced_decision.confidence < 0.6 {
-            notifications.push("Provider selection has low confidence - manual review recommended".to_string());
+            notifications.push(
+                "Provider selection has low confidence - manual review recommended".to_string(),
+            );
         }
 
         if notifications.is_empty() {
@@ -444,13 +481,13 @@ impl EnhancedProviderSelector {
         if let Some(metrics) = self.provider_metrics.get_mut(provider_name) {
             metrics.total_requests += 1;
             metrics.successful_requests += 1;
-            
+
             // Update average response time
             let total_requests = metrics.total_requests as f64;
             let current_avg = metrics.avg_response_time.as_millis() as f64;
             let new_time = response_time.as_millis() as f64;
             let new_avg = (current_avg * (total_requests - 1.0) + new_time) / total_requests;
-            
+
             metrics.avg_response_time = Duration::from_millis(new_avg as u64);
             metrics.last_request_time = Some(Instant::now());
         }
@@ -462,7 +499,9 @@ impl EnhancedProviderSelector {
             .with_previous_provider(context.previous_provider.clone().unwrap_or_default())
             .with_consecutive_failures(context.consecutive_failures);
 
-        self.enhanced_engine.record_usage(provider_name, &fallback_context, true, response_time).await;
+        self.enhanced_engine
+            .record_usage(provider_name, &fallback_context, true, response_time)
+            .await;
 
         // Update selection history outcome
         if let Some(last_entry) = self.selection_history.last_mut() {
@@ -506,12 +545,14 @@ impl EnhancedProviderSelector {
             .with_previous_provider(context.previous_provider.clone().unwrap_or_default())
             .with_consecutive_failures(context.consecutive_failures);
 
-        self.enhanced_engine.record_usage(
-            provider_name,
-            &fallback_context,
-            false,
-            response_time.unwrap_or(Duration::from_secs(30))
-        ).await;
+        self.enhanced_engine
+            .record_usage(
+                provider_name,
+                &fallback_context,
+                false,
+                response_time.unwrap_or(Duration::from_secs(30)),
+            )
+            .await;
 
         // Update selection history outcome
         if let Some(last_entry) = self.selection_history.last_mut() {
@@ -544,7 +585,11 @@ impl EnhancedProviderSelector {
         );
 
         self.user_feedback.insert(
-            format!("{}_{}", feedback.provider_name, feedback.timestamp.elapsed().as_secs()),
+            format!(
+                "{}_{}",
+                feedback.provider_name,
+                feedback.timestamp.elapsed().as_secs()
+            ),
             feedback,
         );
 
@@ -560,7 +605,11 @@ impl EnhancedProviderSelector {
     /// Get smart retry configuration
     pub fn get_smart_retry_config(&self) -> SmartRetryConfig {
         SmartRetryConfig {
-            max_attempts: if self.enhanced_config.ux_optimizations.smart_retry { 5 } else { 3 },
+            max_attempts: if self.enhanced_config.ux_optimizations.smart_retry {
+                5
+            } else {
+                3
+            },
             base_delay: Duration::from_millis(500),
             backoff_multiplier: 1.5,
             max_delay: Duration::from_secs(10),
@@ -583,11 +632,15 @@ impl EnhancedProviderSelector {
         recommendations.sort_by(|a, b| {
             let metrics_a = self.provider_metrics.get(a).unwrap();
             let metrics_b = self.provider_metrics.get(b).unwrap();
-            
-            let score_a = metrics_a.success_rate() - (metrics_a.avg_response_time.as_millis() as f64 / 10000.0);
-            let score_b = metrics_b.success_rate() - (metrics_b.avg_response_time.as_millis() as f64 / 10000.0);
-            
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+
+            let score_a = metrics_a.success_rate()
+                - (metrics_a.avg_response_time.as_millis() as f64 / 10000.0);
+            let score_b = metrics_b.success_rate()
+                - (metrics_b.avg_response_time.as_millis() as f64 / 10000.0);
+
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         recommendations
@@ -599,14 +652,18 @@ impl EnhancedProviderSelector {
 
         // Analyze selection history
         if self.selection_history.len() > 10 {
-            let recent_selections = &self.selection_history[self.selection_history.len().saturating_sub(10)..];
-            
+            let recent_selections =
+                &self.selection_history[self.selection_history.len().saturating_sub(10)..];
+
             // Find most successful provider
             let mut provider_success: HashMap<String, (u32, u32)> = HashMap::new();
             for entry in recent_selections {
                 if let Some(ref outcome) = entry.outcome {
-                    let provider_name = entry.decision.decision.provider_name().unwrap_or("unknown");
-                    let (successes, total) = provider_success.entry(provider_name.to_string()).or_insert((0, 0));
+                    let provider_name =
+                        entry.decision.decision.provider_name().unwrap_or("unknown");
+                    let (successes, total) = provider_success
+                        .entry(provider_name.to_string())
+                        .or_insert((0, 0));
                     *total += 1;
                     if outcome.success {
                         *successes += 1;
@@ -614,8 +671,10 @@ impl EnhancedProviderSelector {
                 }
             }
 
-            if let Some((best_provider, (successes, total))) = provider_success.iter()
-                .max_by_key(|(_, (s, t))| (*s as f64 / *t as f64 * 1000.0) as u32) {
+            if let Some((best_provider, (successes, total))) = provider_success
+                .iter()
+                .max_by_key(|(_, (s, t))| (*s as f64 / *t as f64 * 1000.0) as u32)
+            {
                 if *total > 3 {
                     insights.push(format!(
                         "Provider {} has {:.1}% success rate in recent requests",
@@ -628,11 +687,14 @@ impl EnhancedProviderSelector {
 
         // Analyze user feedback
         if !self.user_feedback.is_empty() {
-            let avg_rating: f64 = self.user_feedback.values()
+            let avg_rating: f64 = self
+                .user_feedback
+                .values()
                 .map(|f| f.rating as f64)
-                .sum::<f64>() / self.user_feedback.len() as f64;
-            
-            insights.push(format!("Average user rating: {:.1}/5.0", avg_rating));
+                .sum::<f64>()
+                / self.user_feedback.len() as f64;
+
+            insights.push(format!("Average user rating: {avg_rating:.1}/5.0"));
         }
 
         insights
@@ -653,15 +715,16 @@ impl Default for SmartRetryConfig {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::config::local_ai::LocalAiConfig;
-    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn test_enhanced_provider_selector_creation() {
         let local_config = LocalAiConfig::with_default_ollama();
         let enhanced_config = EnhancedFallbackConfig::default();
-        
+
         let actual = EnhancedProviderSelector::new(local_config, enhanced_config).await;
         assert!(actual.is_ok());
     }
@@ -684,7 +747,7 @@ mod tests {
             quality_score: Some(0.85),
             error_message: None,
         };
-        
+
         assert_eq!(outcome.success, true);
         assert_eq!(outcome.response_time, Duration::from_millis(500));
         assert_eq!(outcome.user_satisfaction, Some(0.9));

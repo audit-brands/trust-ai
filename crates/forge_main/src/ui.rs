@@ -25,7 +25,7 @@ use tokio_stream::StreamExt;
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, ForgeCommandManager};
+use crate::model::{humanize_context_length, Command, ForgeCommandManager, ModelCommand};
 use crate::state::UIState;
 use crate::update::on_update;
 use crate::{banner, tracker, TRACKER};
@@ -372,8 +372,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(None)?;
                 self.on_custom_event(event.into()).await?;
             }
-            Command::Model => {
-                self.on_model_selection().await?;
+            Command::Model(subcommand) => {
+                match subcommand {
+                    None => {
+                        // Default behavior: open model selection
+                        self.on_model_selection().await?;
+                    }
+                    Some(ModelCommand::List) => {
+                        self.on_model_list().await?;
+                    }
+                    Some(ModelCommand::Status) => {
+                        self.on_model_status().await?;
+                    }
+                    Some(ModelCommand::Config) => {
+                        self.on_model_config().await?;
+                    }
+                    Some(ModelCommand::Select(model_id)) => {
+                        self.on_model_select(&model_id).await?;
+                    }
+                }
             }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
@@ -533,6 +550,140 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.update_model(model.clone());
 
             self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle model listing command
+    async fn on_model_list(&mut self) -> Result<()> {
+        let models = self.get_models().await?;
+
+        if models.is_empty() {
+            self.writeln(TitleFormat::error("No models available"))?;
+            return Ok(());
+        }
+
+        self.writeln(TitleFormat::action("Available Models:"))?;
+
+        for model in models {
+            let status_indicator = if Some(&model.id) == self.state.model.as_ref() {
+                "● " // Current model
+            } else {
+                "  "
+            };
+
+            let context_info = if let Some(context_length) = model.context_length {
+                format!(" ({})", humanize_context_length(context_length))
+            } else {
+                String::new()
+            };
+
+            self.writeln(format!("{}{}{}", status_indicator, model.id, context_info))?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle model status command
+    async fn on_model_status(&mut self) -> Result<()> {
+        if let Some(current_model) = self.state.model.clone() {
+            let models = self.get_models().await?;
+
+            if let Some(model) = models.iter().find(|m| m.id == current_model) {
+                self.writeln(TitleFormat::action("Current Model Status:"))?;
+                self.writeln(format!("Model ID: {}", model.id))?;
+
+                if let Some(context_length) = model.context_length {
+                    self.writeln(format!(
+                        "Context Length: {}",
+                        humanize_context_length(context_length)
+                    ))?;
+                }
+
+                // Check if this is a local model (basic heuristic)
+                let is_local = model.id.as_str().contains("ollama") || model.id.as_str().contains("local");
+                self.writeln(format!(
+                    "Type: {}",
+                    if is_local { "Local" } else { "Cloud" }
+                ))?;
+            } else {
+                self.writeln(TitleFormat::error(format!(
+                    "Current model '{}' not found in available models",
+                    current_model
+                )))?;
+            }
+        } else {
+            self.writeln(TitleFormat::error("No model currently selected"))?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle model configuration command
+    async fn on_model_config(&mut self) -> Result<()> {
+        let workflow = self.active_workflow().await?;
+
+        self.writeln(TitleFormat::action("Model Configuration:"))?;
+
+        if let Some(model) = &workflow.model {
+            self.writeln(format!("Configured Model: {}", model))?;
+        } else {
+            self.writeln("No model configured in workflow")?;
+        }
+
+        if let Some(current_model) = &self.state.model {
+            self.writeln(format!("Active Model: {}", current_model))?;
+        } else {
+            self.writeln("No active model selected")?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle model selection by ID command
+    async fn on_model_select(&mut self, model_id: &str) -> Result<()> {
+        let models = self.get_models().await?;
+
+        // Try to find the model by exact ID match first
+        let model = models
+            .iter()
+            .find(|m| m.id.as_str() == model_id)
+            .or_else(|| {
+                // If not found, try case-insensitive partial match
+                models
+                    .iter()
+                    .find(|m| m.id.as_str().to_lowercase().contains(&model_id.to_lowercase()))
+            });
+
+        match model {
+            Some(model) => {
+                // Update workflow
+                self.api
+                    .update_workflow(self.cli.workflow.as_deref(), |workflow| {
+                        workflow.model = Some(model.id.clone());
+                    })
+                    .await?;
+
+                // Update conversation
+                let conversation_id = self.init_conversation().await?;
+                if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+                    conversation.set_model(&model.id)?;
+                    self.api.upsert_conversation(conversation).await?;
+                    self.update_model(model.id.clone());
+                    self.writeln(TitleFormat::action(format!(
+                        "Switched to model: {}",
+                        model.id
+                    )))?;
+                }
+            }
+            None => {
+                self.writeln(TitleFormat::error(format!(
+                    "Model '{}' not found",
+                    model_id
+                )))?;
+                self.writeln("Use '/model list' to see available models")?;
+            }
         }
 
         Ok(())

@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Context as _;
-
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
-use crate::ollama::{OllamaConfig, OllamaHealthCheck, HealthStatus};
+use crate::ollama::{HealthStatus, OllamaConfig, OllamaHealthCheck};
 
 /// Configuration for local AI providers
 #[derive(Debug, Clone, Serialize, Deserialize, Setters)]
@@ -70,6 +69,7 @@ pub struct HealthCheckConfig {
 /// Global settings for local AI
 #[derive(Debug, Clone, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
+#[derive(Default)]
 pub struct LocalAiSettings {
     /// Discovery settings
     pub discovery: DiscoveryConfig,
@@ -146,14 +146,6 @@ impl Default for HealthCheckConfig {
     }
 }
 
-impl Default for LocalAiSettings {
-    fn default() -> Self {
-        Self {
-            discovery: DiscoveryConfig::default(),
-            monitoring: MonitoringConfig::default(),
-        }
-    }
-}
 
 impl Default for DiscoveryConfig {
     fn default() -> Self {
@@ -205,8 +197,9 @@ impl LocalAiConfig {
         }
 
         for (name, provider) in &self.providers {
-            provider.validate()
-                .with_context(|| format!("Invalid configuration for provider '{}'", name))?;
+            provider
+                .validate()
+                .with_context(|| format!("Invalid configuration for provider '{name}'"))?;
         }
 
         Ok(())
@@ -215,10 +208,9 @@ impl LocalAiConfig {
     /// Create a default configuration with Ollama
     pub fn with_default_ollama() -> Self {
         let mut config = Self::new();
-        config.providers.insert(
-            "ollama".to_string(),
-            LocalProviderConfig::default(),
-        );
+        config
+            .providers
+            .insert("ollama".to_string(), LocalProviderConfig::default());
         config
     }
 }
@@ -253,7 +245,10 @@ impl LocalProviderConfig {
             }
         }
 
-        debug!("Provider configuration validated successfully: {}", self.provider_type);
+        debug!(
+            "Provider configuration validated successfully: {}",
+            self.provider_type
+        );
         Ok(())
     }
 
@@ -304,8 +299,10 @@ impl HealthCheckConfig {
             anyhow::bail!("Health check timeout cannot be zero");
         }
         if self.timeout_seconds >= self.interval_seconds {
-            warn!("Health check timeout ({}) is >= interval ({})", 
-                  self.timeout_seconds, self.interval_seconds);
+            warn!(
+                "Health check timeout ({}) is >= interval ({})",
+                self.timeout_seconds, self.interval_seconds
+            );
         }
         if self.failure_threshold == 0 {
             anyhow::bail!("Failure threshold cannot be zero");
@@ -332,7 +329,7 @@ impl HealthCheckConfig {
 pub trait ProviderHealthChecker: Send + Sync {
     /// Check the health of the provider
     async fn check_health(&self) -> anyhow::Result<ProviderHealthStatus>;
-    
+
     /// Get the provider type
     fn provider_type(&self) -> &str;
 }
@@ -362,7 +359,10 @@ pub enum ProviderHealthStatus {
 impl ProviderHealthStatus {
     /// Check if the provider is usable
     pub fn is_usable(&self) -> bool {
-        matches!(self, ProviderHealthStatus::Healthy { .. } | ProviderHealthStatus::Degraded { .. })
+        matches!(
+            self,
+            ProviderHealthStatus::Healthy { .. } | ProviderHealthStatus::Degraded { .. }
+        )
     }
 
     /// Get response time
@@ -391,9 +391,7 @@ pub struct OllamaProviderHealthChecker {
 
 impl OllamaProviderHealthChecker {
     pub fn new(config: OllamaConfig) -> Self {
-        Self {
-            health_check: OllamaHealthCheck::new(config),
-        }
+        Self { health_check: OllamaHealthCheck::new(config) }
     }
 }
 
@@ -401,7 +399,7 @@ impl OllamaProviderHealthChecker {
 impl ProviderHealthChecker for OllamaProviderHealthChecker {
     async fn check_health(&self) -> anyhow::Result<ProviderHealthStatus> {
         let status = self.health_check.check_health().await?;
-        
+
         let provider_status = match status {
             HealthStatus::Healthy { response_time, models_available } => {
                 ProviderHealthStatus::Healthy {
@@ -418,10 +416,7 @@ impl ProviderHealthChecker for OllamaProviderHealthChecker {
                 }
             }
             HealthStatus::Unhealthy { reason, response_time } => {
-                ProviderHealthStatus::Unhealthy {
-                    reason,
-                    response_time,
-                }
+                ProviderHealthStatus::Unhealthy { reason, response_time }
             }
         };
 
@@ -435,8 +430,9 @@ impl ProviderHealthChecker for OllamaProviderHealthChecker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_default_local_ai_config() {
@@ -462,8 +458,7 @@ mod tests {
 
     #[test]
     fn test_local_provider_config_validation_invalid_url() {
-        let fixture = LocalProviderConfig::default()
-            .endpoint("invalid-url".to_string());
+        let fixture = LocalProviderConfig::default().endpoint("invalid-url".to_string());
         let actual = fixture.validate();
         assert!(actual.is_err());
     }
@@ -477,16 +472,14 @@ mod tests {
 
     #[test]
     fn test_health_check_config_validation_zero_interval() {
-        let fixture = HealthCheckConfig::default()
-            .interval_seconds(0u64);
+        let fixture = HealthCheckConfig::default().interval_seconds(0u64);
         let actual = fixture.validate();
         assert!(actual.is_err());
     }
 
     #[test]
     fn test_health_check_config_validation_zero_timeout() {
-        let fixture = HealthCheckConfig::default()
-            .timeout_seconds(0u64);
+        let fixture = HealthCheckConfig::default().timeout_seconds(0u64);
         let actual = fixture.validate();
         assert!(actual.is_err());
     }
@@ -519,7 +512,7 @@ mod tests {
         let fixture = LocalProviderConfig::default();
         let actual = fixture.to_ollama_config();
         assert!(actual.is_ok());
-        
+
         let ollama_config = actual.unwrap();
         assert_eq!(ollama_config.base_url, "http://localhost:11434");
         assert_eq!(ollama_config.timeout_seconds, 30);
