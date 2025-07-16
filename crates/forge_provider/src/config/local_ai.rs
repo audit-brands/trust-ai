@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use async_trait::async_trait;
+
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};

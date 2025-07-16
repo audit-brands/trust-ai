@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
-use tokio::time::interval;
+
 use tracing::{debug, error, info, warn};
 
 use crate::config::local_ai::{LocalAiConfig, ProviderHealthChecker, ProviderHealthStatus};
@@ -156,8 +156,8 @@ impl HealthMonitor {
         };
 
         let interval_duration = provider_config.health_check.interval_duration();
-        let health_status = Arc::clone(&self.health_status);
-        let checker = match self.checkers.get(&provider_name) {
+        let _health_status = Arc::clone(&self.health_status);
+        let _checker = match self.checkers.get(&provider_name) {
             Some(checker) => checker,
             None => {
                 error!("Health checker not found for provider: {}", provider_name);

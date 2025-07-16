@@ -122,7 +122,7 @@ impl Client {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
-            InnerClient::Ollama(provider) => provider.chat(model, context).await,
+            InnerClient::Ollama(provider) => provider.chat(model.clone(), context).await,
         })?;
 
         let this = self.clone();

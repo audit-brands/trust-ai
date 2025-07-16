@@ -126,3 +126,64 @@ custom_rules: |-
 
   Refactoring:
   - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
+
+  # Enhanced fallback configuration (Phase 7)
+  enhanced_fallback:
+    # Enable adaptive strategy selection
+    adaptive_strategy: true
+    
+    # Performance-based provider ranking
+    performance_ranking: true
+    
+    # User experience optimizations
+    ux_optimizations:
+      # Preemptive fallback based on performance degradation
+      preemptive_fallback: true
+      
+      # Smart retry with exponential backoff
+      smart_retry: true
+      
+      # Seamless provider switching
+      seamless_switching: true
+      
+      # Context-aware notifications
+      context_aware_notifications: true
+      
+      # Response time optimization
+      response_time_optimization: true
+    
+    # Pattern learning configuration
+    pattern_learning:
+      # Enable learning from user behavior
+      enabled: true
+      
+      # Time-based usage patterns
+      time_patterns: true
+      
+      # Model-specific preferences
+      model_preferences: true
+      
+      # Workload-based optimization
+      workload_optimization: true
+      
+      # Learning window in days
+      learning_window_days: 30
+    
+    # Cost optimization settings
+    cost_optimization:
+      # Enable cost-aware fallback
+      enabled: true
+      
+      # Prefer local providers for cost savings
+      prefer_local_for_cost: true
+      
+      # Cloud provider cost ranking (cheapest first)
+      cloud_cost_ranking:
+        - "openai"
+        - "anthropic"
+      
+      # Budget-based switching
+      budget_aware_switching: false
+      
+      # Daily budget limit in USD (optional)
+      # daily_budget_limit: 10.0

@@ -9,7 +9,7 @@ use tracing::debug;
 use super::error::OllamaError;
 use super::request::ChatRequest;
 use super::response::{ChatResponse, ListModelsResponse};
-use crate::error::Error;
+
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
@@ -41,7 +41,7 @@ impl Ollama {
 impl Ollama {
     pub async fn chat(
         &self,
-        model: &ModelId,
+        model: ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         // Convert context to Ollama chat request
@@ -59,9 +59,15 @@ impl Ollama {
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
 
+        let url_clone = url.clone();
+        let url_clone2 = url.clone();
+        let model_clone = model.clone();
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
+            .then(move |event| {
+                let url_inner = url_clone.clone();
+                let model_inner = model_clone.clone();
+                async move {
                 match event {
                     Ok(event) => match event {
                         Event::Open => None,
@@ -87,18 +93,18 @@ impl Ollama {
                         reqwest_eventsource::Error::StreamEnded => None,
                         reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
                             let status = response.status();
-                            let body = response.text().await.ok();
+                            let body_text = response.text().await.ok();
                             
                             // Convert to appropriate OllamaError
                             let ollama_error = match status.as_u16() {
-                                404 => OllamaError::model_not_found(model.as_str().to_string()),
-                                503 => OllamaError::service_unavailable(url.to_string()),
+                                404 => OllamaError::model_not_found(model_inner.as_str().to_string()),
+                                503 => OllamaError::service_unavailable(url_inner.to_string()),
                                 _ => OllamaError::http_error(status.as_u16(), 
-                                    body.unwrap_or_else(|| "Unknown error".to_string())),
+                                    body_text.clone().unwrap_or_else(|| "Unknown error".to_string())),
                             };
                             
                             Some(Err(anyhow::anyhow!(ollama_error)).with_context(
-                                || match body {
+                                || match body_text {
                                     Some(body) => {
                                         format!("Invalid status code: {status} Reason: {body}")
                                     }
@@ -119,10 +125,11 @@ impl Ollama {
                         }
                     },
                 }
+                }
             })
             .map(move |response| match response {
                 Some(Err(err)) => {
-                    Some(Err(err).with_context(|| format_http_context(None, "POST", &url)))
+                    Some(Err(err).with_context(|| format_http_context(None, "POST", &url_clone2)))
                 }
                 _ => response,
             });

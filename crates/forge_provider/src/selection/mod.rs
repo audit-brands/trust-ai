@@ -1,9 +1,11 @@
 //! Provider selection and management logic
 
+pub mod enhanced;
+
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use anyhow::Context as _;
+
 use tracing::{debug, info, warn};
 
 use crate::config::fallback::{FallbackConfig, FallbackContext, FallbackDecision, FallbackEngine};
@@ -479,6 +481,12 @@ impl UserPreferences {
         }
     }
 }
+
+// Re-export enhanced features
+pub use enhanced::{
+    EnhancedProviderSelector, EnhancedProviderSelection, SmartRetryConfig,
+    UserFeedback, FeedbackType, SelectionOutcome,
+};
 
 #[cfg(test)]
 mod tests {
