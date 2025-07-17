@@ -181,6 +181,16 @@ impl LocalAiConfig {
 
     /// Get enabled providers
     pub fn enabled_providers(&self) -> impl Iterator<Item = (&String, &LocalProviderConfig)> {
+        debug!(
+            "Getting enabled providers from {} total providers",
+            self.providers.len()
+        );
+        for (name, config) in &self.providers {
+            debug!(
+                "Provider '{}': enabled={}, type={}",
+                name, config.enabled, config.provider_type
+            );
+        }
         self.providers.iter().filter(|(_, config)| config.enabled)
     }
 
@@ -253,6 +263,11 @@ impl LocalProviderConfig {
 
     /// Convert to OllamaConfig if this is an Ollama provider
     pub fn to_ollama_config(&self) -> anyhow::Result<OllamaConfig> {
+        debug!("Converting LocalProviderConfig to OllamaConfig");
+        debug!("Provider type: {}", self.provider_type);
+        debug!("Endpoint: {}", self.endpoint);
+        debug!("Config: {:?}", self.config);
+
         match &self.config {
             ProviderSpecificConfig::Ollama {
                 timeout_seconds,
@@ -261,6 +276,11 @@ impl LocalProviderConfig {
                 connection_pooling,
                 user_agent,
             } => {
+                debug!(
+                    "Creating OllamaConfig with timeout: {}s, retries: {}",
+                    timeout_seconds, max_retries
+                );
+
                 let mut config = OllamaConfig::new()
                     .with_base_url(self.endpoint.clone())
                     .with_timeout(*timeout_seconds)
@@ -272,6 +292,7 @@ impl LocalProviderConfig {
                     config = config.with_user_agent(ua.clone());
                 }
 
+                debug!("Successfully created OllamaConfig");
                 Ok(config)
             }
         }
@@ -279,9 +300,18 @@ impl LocalProviderConfig {
 
     /// Create a health checker for this provider
     pub fn create_health_checker(&self) -> anyhow::Result<Box<dyn ProviderHealthChecker>> {
+        debug!(
+            "Creating health checker for provider type: {}",
+            self.provider_type
+        );
+
         match &self.config {
             ProviderSpecificConfig::Ollama { .. } => {
+                debug!("Creating Ollama health checker");
                 let ollama_config = self.to_ollama_config()?;
+                debug!(
+                    "Successfully converted to OllamaConfig, creating OllamaProviderHealthChecker"
+                );
                 Ok(Box::new(OllamaProviderHealthChecker::new(ollama_config)))
             }
         }

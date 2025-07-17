@@ -77,22 +77,50 @@ pub enum HealthEvent {
 impl HealthMonitor {
     /// Create a new health monitor
     pub async fn new(config: LocalAiConfig) -> anyhow::Result<Self> {
+        debug!("Creating HealthMonitor with config: {:?}", config);
         let mut checkers = HashMap::new();
 
         // Create health checkers for enabled providers
         for (name, provider_config) in config.enabled_providers() {
-            if let Ok(checker) = provider_config.create_health_checker() {
-                checkers.insert(name.clone(), checker);
-            } else {
-                warn!("Failed to create health checker for provider: {}", name);
+            debug!("Creating health checker for provider: {}", name);
+            match provider_config.create_health_checker() {
+                Ok(checker) => {
+                    debug!("Successfully created health checker for provider: {}", name);
+                    checkers.insert(name.clone(), checker);
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to create health checker for provider '{}': {}",
+                        name, e
+                    );
+                    error!("Provider config: {:?}", provider_config);
+
+                    // Instead of failing completely, let's continue without this provider
+                    // This allows the system to work even if one provider has issues
+                    warn!("Continuing without health checker for provider '{}'", name);
+                }
             }
         }
 
+        debug!(
+            "HealthMonitor created successfully with {} checkers",
+            checkers.len()
+        );
         Ok(Self {
             config,
             health_status: Arc::new(RwLock::new(HashMap::new())),
             checkers,
         })
+    }
+
+    /// Create a fallback health monitor with no checkers
+    pub fn new_fallback(config: LocalAiConfig) -> Self {
+        warn!("Creating fallback HealthMonitor with no health checkers");
+        Self {
+            config,
+            health_status: Arc::new(RwLock::new(HashMap::new())),
+            checkers: HashMap::new(),
+        }
     }
 
     /// Start the health monitoring service

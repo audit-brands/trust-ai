@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{Model, ModelId};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::config::local_ai::{
     LocalAiConfig, LocalProviderConfig, ProviderHealthStatus, ProviderSpecificConfig,
@@ -63,8 +63,26 @@ pub struct ModelDiscoveryResult {
 impl ModelDiscoveryService {
     /// Create a new model discovery service
     pub async fn new(local_config: LocalAiConfig) -> Result<Self> {
-        let health_monitor = HealthMonitor::new(local_config.clone()).await?;
+        debug!(
+            "Creating ModelDiscoveryService with config: {:?}",
+            local_config
+        );
 
+        let health_monitor = match HealthMonitor::new(local_config.clone()).await {
+            Ok(monitor) => {
+                debug!("HealthMonitor created successfully");
+                monitor
+            }
+            Err(e) => {
+                error!("Failed to create HealthMonitor: {}", e);
+                error!("This might be due to provider configuration issues");
+
+                // Create a minimal health monitor with no checkers as fallback
+                HealthMonitor::new_fallback(local_config.clone())
+            }
+        };
+
+        debug!("ModelDiscoveryService created successfully");
         Ok(Self {
             health_monitor,
             local_config,
@@ -110,8 +128,7 @@ impl ModelDiscoveryService {
                     );
                 }
                 Err(e) => {
-                    let warning =
-                        format!("Failed to discover models from '{provider_name}': {e}");
+                    let warning = format!("Failed to discover models from '{provider_name}': {e}");
                     warn!("{}", warning);
                     warnings.push(warning);
                 }
@@ -215,9 +232,7 @@ impl ModelDiscoveryService {
             .with_context(|| format!("Failed to create Ollama provider for '{provider_name}'"))?;
 
         let models = ollama.models().await.with_context(|| {
-            format!(
-                "Failed to fetch models from Ollama provider '{provider_name}'"
-            )
+            format!("Failed to fetch models from Ollama provider '{provider_name}'")
         })?;
 
         let now = std::time::Instant::now();
