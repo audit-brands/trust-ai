@@ -15,6 +15,7 @@ pub use client::Client;
 pub mod config;
 pub mod discovery;
 pub mod health;
+pub mod performance;
 pub mod selection;
 #[cfg(test)]
 pub mod test_utils;
