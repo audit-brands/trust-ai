@@ -125,7 +125,13 @@ impl HealthMonitor {
                     info!(
                         "Initial health check completed for {}: {:?}",
                         provider_name,
-                        status.get(provider_name).unwrap().status
+                        status
+                            .get(provider_name)
+                            .map(|info| &info.status)
+                            .unwrap_or(&ProviderHealthStatus::Unhealthy {
+                                reason: "Status not available".to_string(),
+                                response_time: Duration::from_millis(0),
+                            })
                     );
                 }
                 Err(e) => {
@@ -468,7 +474,9 @@ mod tests {
     #[tokio::test]
     async fn test_health_monitor_empty_config() {
         let config = LocalAiConfig::new();
-        let monitor = HealthMonitor::new(config).await.unwrap();
+        let monitor = HealthMonitor::new(config)
+            .await
+            .expect("Failed to create health monitor with empty config");
         let health_status = monitor.get_health_status().await;
         assert_eq!(health_status.len(), 0);
     }

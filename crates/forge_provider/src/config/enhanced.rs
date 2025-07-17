@@ -583,9 +583,7 @@ impl EnhancedFallbackEngine {
                 if let Some(trend) = self.performance_history.trends.get(provider_name) {
                     if matches!(trend.direction, TrendDirection::Degrading) && trend.strength > 0.7
                     {
-                        return Some(format!(
-                            "Provider {provider_name} showing degrading trend"
-                        ));
+                        return Some(format!("Provider {provider_name} showing degrading trend"));
                     }
                 }
             }

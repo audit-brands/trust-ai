@@ -146,7 +146,6 @@ impl Default for HealthCheckConfig {
     }
 }
 
-
 impl Default for DiscoveryConfig {
     fn default() -> Self {
         Self {

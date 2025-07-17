@@ -182,9 +182,7 @@ impl OllamaError {
                 )
             }
             OllamaError::ModelLoading { model } => {
-                format!(
-                    "Model '{model}' is currently loading. Please wait a moment and try again"
-                )
+                format!("Model '{model}' is currently loading. Please wait a moment and try again")
             }
             OllamaError::AuthenticationFailed { .. } => {
                 "Authentication failed. Please check your Ollama configuration and permissions"
@@ -199,9 +197,7 @@ impl OllamaError {
                 )
             }
             OllamaError::InvalidConfiguration { message } => {
-                format!(
-                    "Configuration error: {message}. Please check your Ollama settings"
-                )
+                format!("Configuration error: {message}. Please check your Ollama settings")
             }
             _ => self.to_string(),
         }

@@ -1,5 +1,5 @@
 //! Model discovery service for automatic detection and health monitoring
-//! 
+//!
 //! This module provides enhanced model discovery capabilities that go beyond
 //! simple model listing to include automatic detection, health monitoring,
 //! and availability reporting for local AI services.
@@ -11,11 +11,14 @@ use anyhow::{Context, Result};
 use forge_app::domain::{Model, ModelId};
 use tracing::{debug, info, warn};
 
-use crate::config::local_ai::{LocalAiConfig, LocalProviderConfig, ProviderHealthStatus, ProviderSpecificConfig};
+use crate::config::local_ai::{
+    LocalAiConfig, LocalProviderConfig, ProviderHealthStatus, ProviderSpecificConfig,
+};
 use crate::health::HealthMonitor;
 use crate::ollama::{OllamaConfig, OllamaHealthCheck};
 
-/// Enhanced model discovery service with automatic detection and health monitoring
+/// Enhanced model discovery service with automatic detection and health
+/// monitoring
 pub struct ModelDiscoveryService {
     /// Health monitor for tracking provider status
     health_monitor: HealthMonitor,
@@ -61,7 +64,7 @@ impl ModelDiscoveryService {
     /// Create a new model discovery service
     pub async fn new(local_config: LocalAiConfig) -> Result<Self> {
         let health_monitor = HealthMonitor::new(local_config.clone()).await?;
-        
+
         Ok(Self {
             health_monitor,
             local_config,
@@ -72,13 +75,13 @@ impl ModelDiscoveryService {
     /// Start the discovery service with automatic monitoring
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting model discovery service");
-        
+
         // Start health monitoring
         self.health_monitor.start().await?;
-        
+
         // Perform initial discovery
         self.discover_all_models().await?;
-        
+
         info!("Model discovery service started successfully");
         Ok(())
     }
@@ -87,27 +90,34 @@ impl ModelDiscoveryService {
     pub async fn discover_all_models(&mut self) -> Result<ModelDiscoveryResult> {
         let start_time = std::time::Instant::now();
         let mut warnings = Vec::new();
-        
+
         info!("Starting comprehensive model discovery");
-        
+
         // Clear previous discoveries
         self.discovered_models.clear();
-        
+
         // Discover from each provider
         let providers = self.local_config.providers.clone();
         for (provider_name, provider_config) in providers {
-            match self.discover_provider_models(&provider_name, &provider_config).await {
+            match self
+                .discover_provider_models(&provider_name, &provider_config)
+                .await
+            {
                 Ok(count) => {
-                    info!("Discovered {} models from provider '{}'", count, provider_name);
+                    info!(
+                        "Discovered {} models from provider '{}'",
+                        count, provider_name
+                    );
                 }
                 Err(e) => {
-                    let warning = format!("Failed to discover models from '{}': {}", provider_name, e);
+                    let warning =
+                        format!("Failed to discover models from '{provider_name}': {e}");
                     warn!("{}", warning);
                     warnings.push(warning);
                 }
             }
         }
-        
+
         // Automatic Ollama discovery if not explicitly configured
         if !self.local_config.providers.contains_key("ollama") {
             match self.discover_ollama_automatically().await {
@@ -117,27 +127,28 @@ impl ModelDiscoveryService {
                     }
                 }
                 Err(e) => {
-                    let warning = format!("Automatic Ollama discovery failed: {}", e);
+                    let warning = format!("Automatic Ollama discovery failed: {e}");
                     debug!("{}", warning);
                     warnings.push(warning);
                 }
             }
         }
-        
+
         let discovery_duration = start_time.elapsed();
-        
+
         // Get health status
         let health_status = self.health_monitor.get_health_status().await;
         let healthy_providers = health_status
             .values()
             .filter(|status| matches!(status, ProviderHealthStatus::Healthy { .. }))
             .count();
-        
-        let available_models = self.discovered_models
+
+        let available_models = self
+            .discovered_models
             .values()
             .filter(|model| model.available)
             .count();
-        
+
         let result = ModelDiscoveryResult {
             total_models: self.discovered_models.len(),
             healthy_providers,
@@ -145,15 +156,15 @@ impl ModelDiscoveryService {
             discovery_duration,
             warnings,
         };
-        
+
         info!(
             "Model discovery completed: {} models from {} healthy providers ({} available) in {:?}",
             result.total_models,
-            result.healthy_providers, 
+            result.healthy_providers,
             result.available_models,
             result.discovery_duration
         );
-        
+
         Ok(result)
     }
 
@@ -164,25 +175,30 @@ impl ModelDiscoveryService {
         provider_config: &LocalProviderConfig,
     ) -> Result<usize> {
         debug!("Discovering models from provider: {}", provider_name);
-        
+
         // Check provider health first
-        let provider_health = self.health_monitor
+        let provider_health = self
+            .health_monitor
             .get_provider_health(provider_name)
             .await
             .unwrap_or(ProviderHealthStatus::Unhealthy {
                 reason: "Provider not monitored".to_string(),
                 response_time: Duration::from_secs(0),
             });
-        
+
         // Only discover from healthy or degraded providers
-        if !matches!(provider_health, ProviderHealthStatus::Healthy { .. } | ProviderHealthStatus::Degraded { .. }) {
+        if !matches!(
+            provider_health,
+            ProviderHealthStatus::Healthy { .. } | ProviderHealthStatus::Degraded { .. }
+        ) {
             return Ok(0);
         }
-        
+
         match &provider_config.config {
             ProviderSpecificConfig::Ollama { .. } => {
                 let ollama_config = provider_config.to_ollama_config()?;
-                self.discover_ollama_models(provider_name, &ollama_config, provider_health).await
+                self.discover_ollama_models(provider_name, &ollama_config, provider_health)
+                    .await
             }
         }
     }
@@ -194,17 +210,21 @@ impl ModelDiscoveryService {
         config: &OllamaConfig,
         provider_health: ProviderHealthStatus,
     ) -> Result<usize> {
-        let ollama = config.create_provider()
-            .with_context(|| format!("Failed to create Ollama provider for '{}'", provider_name))?;
-        
-        let models = ollama.models().await
-            .with_context(|| format!("Failed to fetch models from Ollama provider '{}'", provider_name))?;
-        
+        let ollama = config
+            .create_provider()
+            .with_context(|| format!("Failed to create Ollama provider for '{provider_name}'"))?;
+
+        let models = ollama.models().await.with_context(|| {
+            format!(
+                "Failed to fetch models from Ollama provider '{provider_name}'"
+            )
+        })?;
+
         let now = std::time::Instant::now();
         let response_time = Some(provider_health.response_time());
-        
+
         let available = matches!(provider_health, ProviderHealthStatus::Healthy { .. });
-        
+
         for model in &models {
             let discovered_model = DiscoveredModel {
                 model: model.clone(),
@@ -214,95 +234,98 @@ impl ModelDiscoveryService {
                 last_checked: now,
                 response_time,
             };
-            
+
             // Use model ID as key to avoid duplicates
-            self.discovered_models.insert(model.id.as_str().to_string(), discovered_model);
+            self.discovered_models
+                .insert(model.id.as_str().to_string(), discovered_model);
         }
-        
+
         Ok(models.len())
     }
 
     /// Automatically discover Ollama installations on common ports
     async fn discover_ollama_automatically(&mut self) -> Result<usize> {
         debug!("Attempting automatic Ollama discovery");
-        
+
         let default_config = OllamaConfig::default();
         let health_check = OllamaHealthCheck::new(default_config.clone());
-        
+
         // Try the default configuration first
         match health_check.check_health().await {
             Ok(health_status) if health_status.is_usable() => {
-                info!("Found Ollama service at default location: {}", default_config.base_url);
-                
+                info!(
+                    "Found Ollama service at default location: {}",
+                    default_config.base_url
+                );
+
                 let provider_health = match health_status {
                     crate::ollama::HealthStatus::Healthy { response_time, models_available } => {
-                        ProviderHealthStatus::Healthy { 
-                            response_time, 
+                        ProviderHealthStatus::Healthy {
+                            response_time,
                             models_available,
                             additional_info: None,
                         }
                     }
                     crate::ollama::HealthStatus::Degraded { reason, response_time } => {
-                        ProviderHealthStatus::Degraded { 
-                            reason, 
+                        ProviderHealthStatus::Degraded {
+                            reason,
                             response_time,
                             models_available: 0, // Unknown in degraded state
                         }
                     }
                     crate::ollama::HealthStatus::Unhealthy { reason, response_time } => {
-                        ProviderHealthStatus::Unhealthy { 
-                            reason, 
-                            response_time,
-                        }
+                        ProviderHealthStatus::Unhealthy { reason, response_time }
                     }
                 };
-                
-                return self.discover_ollama_models("ollama-auto", &default_config, provider_health).await;
+
+                return self
+                    .discover_ollama_models("ollama-auto", &default_config, provider_health)
+                    .await;
             }
             _ => {
                 debug!("Default Ollama location not available, trying discovery");
             }
         }
-        
+
         // If default doesn't work, try discovery
         let discovered_services = health_check.discover_services().await;
-        
+
         for service_url in discovered_services {
             let config = OllamaConfig::new().with_base_url(service_url.clone());
             let health_check = OllamaHealthCheck::new(config.clone());
-            
+
             if let Ok(health_status) = health_check.check_health().await {
                 if health_status.is_usable() {
                     info!("Auto-discovered Ollama service at: {}", service_url);
-                    
+
                     let provider_health = match health_status {
-                        crate::ollama::HealthStatus::Healthy { response_time, models_available } => {
-                            ProviderHealthStatus::Healthy { 
-                                response_time, 
-                                models_available,
-                                additional_info: None,
-                            }
-                        }
+                        crate::ollama::HealthStatus::Healthy {
+                            response_time,
+                            models_available,
+                        } => ProviderHealthStatus::Healthy {
+                            response_time,
+                            models_available,
+                            additional_info: None,
+                        },
                         crate::ollama::HealthStatus::Degraded { reason, response_time } => {
-                            ProviderHealthStatus::Degraded { 
-                                reason, 
+                            ProviderHealthStatus::Degraded {
+                                reason,
                                 response_time,
                                 models_available: 0,
                             }
                         }
                         crate::ollama::HealthStatus::Unhealthy { reason, response_time } => {
-                            ProviderHealthStatus::Unhealthy { 
-                                reason, 
-                                response_time,
-                            }
+                            ProviderHealthStatus::Unhealthy { reason, response_time }
                         }
                     };
-                    
-                    return self.discover_ollama_models("ollama-discovered", &config, provider_health).await;
+
+                    return self
+                        .discover_ollama_models("ollama-discovered", &config, provider_health)
+                        .await;
                 }
             }
         }
-        
+
         Ok(0)
     }
 
@@ -343,10 +366,10 @@ impl ModelDiscoveryService {
     /// Force refresh of model discovery
     pub async fn refresh_discovery(&mut self) -> Result<ModelDiscoveryResult> {
         info!("Refreshing model discovery");
-        
+
         // Force health check refresh
         let _ = self.health_monitor.force_check_all().await;
-        
+
         // Rediscover all models
         self.discover_all_models().await
     }
@@ -354,21 +377,24 @@ impl ModelDiscoveryService {
     /// Get discovery statistics
     pub fn get_discovery_stats(&self) -> DiscoveryStats {
         let total_models = self.discovered_models.len();
-        let available_models = self.discovered_models
+        let available_models = self
+            .discovered_models
             .values()
             .filter(|model| model.available)
             .count();
-        
-        let providers: std::collections::HashSet<_> = self.discovered_models
+
+        let providers: std::collections::HashSet<_> = self
+            .discovered_models
             .values()
             .map(|model| &model.provider)
             .collect();
-        
+
         DiscoveryStats {
             total_models,
             available_models,
             total_providers: providers.len(),
-            last_discovery: self.discovered_models
+            last_discovery: self
+                .discovered_models
                 .values()
                 .map(|model| model.last_checked)
                 .min(),
@@ -392,7 +418,9 @@ pub struct DiscoveryStats {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+
     use pretty_assertions::assert_eq;
+
     use super::*;
 
     fn create_test_model(id: &str, name: &str) -> Model {
@@ -450,7 +478,7 @@ mod tests {
         let config = LocalAiConfig::new();
         let service = ModelDiscoveryService::new(config).await.unwrap();
         let result = service.discover_models().await.unwrap();
-        
+
         assert_eq!(result.discovered_models.len(), 0);
         assert_eq!(result.stats.total_models, 0);
         assert_eq!(result.stats.available_models, 0);
@@ -461,7 +489,7 @@ mod tests {
     fn test_discovered_model_healthy_provider() {
         let model = create_test_model("llama3.2:latest", "Llama 3.2");
         let health_status = create_healthy_status();
-        
+
         let fixture = DiscoveredModel {
             model: model.clone(),
             provider: "ollama".to_string(),
@@ -470,11 +498,14 @@ mod tests {
             last_checked: std::time::Instant::now(),
             response_time: Some(Duration::from_millis(100)),
         };
-        
+
         assert_eq!(fixture.model.id, model.id);
         assert_eq!(fixture.provider, "ollama");
         assert!(fixture.available);
-        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Healthy { .. }));
+        assert!(matches!(
+            fixture.provider_health,
+            ProviderHealthStatus::Healthy { .. }
+        ));
         assert!(fixture.response_time.is_some());
     }
 
@@ -482,7 +513,7 @@ mod tests {
     fn test_discovered_model_degraded_provider() {
         let model = create_test_model("qwen2.5:latest", "Qwen 2.5");
         let health_status = create_degraded_status();
-        
+
         let fixture = DiscoveredModel {
             model: model.clone(),
             provider: "ollama".to_string(),
@@ -491,11 +522,14 @@ mod tests {
             last_checked: std::time::Instant::now(),
             response_time: Some(Duration::from_millis(2000)),
         };
-        
+
         assert_eq!(fixture.model.id, model.id);
         assert_eq!(fixture.provider, "ollama");
         assert!(fixture.available);
-        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Degraded { .. }));
+        assert!(matches!(
+            fixture.provider_health,
+            ProviderHealthStatus::Degraded { .. }
+        ));
         assert_eq!(fixture.response_time.unwrap(), Duration::from_millis(2000));
     }
 
@@ -503,7 +537,7 @@ mod tests {
     fn test_discovered_model_unhealthy_provider() {
         let model = create_test_model("deepseek-r1:latest", "DeepSeek R1");
         let health_status = create_unhealthy_status();
-        
+
         let fixture = DiscoveredModel {
             model: model.clone(),
             provider: "ollama".to_string(),
@@ -512,11 +546,14 @@ mod tests {
             last_checked: std::time::Instant::now(),
             response_time: None,
         };
-        
+
         assert_eq!(fixture.model.id, model.id);
         assert_eq!(fixture.provider, "ollama");
         assert!(!fixture.available);
-        assert!(matches!(fixture.provider_health, ProviderHealthStatus::Unhealthy { .. }));
+        assert!(matches!(
+            fixture.provider_health,
+            ProviderHealthStatus::Unhealthy { .. }
+        ));
         assert!(fixture.response_time.is_none());
     }
 
@@ -528,7 +565,7 @@ mod tests {
             total_providers: 0,
             last_discovery: None,
         };
-        
+
         assert_eq!(fixture.total_models, 0);
         assert_eq!(fixture.available_models, 0);
         assert_eq!(fixture.total_providers, 0);
@@ -543,7 +580,7 @@ mod tests {
             total_providers: 2,
             last_discovery: Some(std::time::Instant::now()),
         };
-        
+
         assert_eq!(fixture.total_models, 5);
         assert_eq!(fixture.available_models, 3);
         assert_eq!(fixture.total_providers, 2);
@@ -558,7 +595,7 @@ mod tests {
             total_providers: 3,
             last_discovery: Some(std::time::Instant::now()),
         };
-        
+
         let availability_rate = fixture.available_models as f64 / fixture.total_models as f64;
         assert_eq!(availability_rate, 0.7);
         assert!(availability_rate > 0.5); // More than half available
@@ -575,7 +612,7 @@ mod tests {
                 last_discovery: Some(std::time::Instant::now()),
             },
         };
-        
+
         assert!(fixture.discovered_models.is_empty());
         assert_eq!(fixture.stats.total_models, 0);
         assert_eq!(fixture.stats.available_models, 0);
@@ -585,7 +622,7 @@ mod tests {
     fn test_model_discovery_result_with_models() {
         let model1 = create_test_model("llama3.2:latest", "Llama 3.2");
         let model2 = create_test_model("qwen2.5:latest", "Qwen 2.5");
-        
+
         let discovered_model1 = DiscoveredModel {
             model: model1,
             provider: "ollama".to_string(),
@@ -594,7 +631,7 @@ mod tests {
             last_checked: std::time::Instant::now(),
             response_time: Some(Duration::from_millis(100)),
         };
-        
+
         let discovered_model2 = DiscoveredModel {
             model: model2,
             provider: "ollama".to_string(),
@@ -603,7 +640,7 @@ mod tests {
             last_checked: std::time::Instant::now(),
             response_time: Some(Duration::from_millis(2000)),
         };
-        
+
         let fixture = ModelDiscoveryResult {
             discovered_models: vec![discovered_model1, discovered_model2],
             stats: DiscoveryStats {
@@ -613,22 +650,27 @@ mod tests {
                 last_discovery: Some(std::time::Instant::now()),
             },
         };
-        
+
         assert_eq!(fixture.discovered_models.len(), 2);
         assert_eq!(fixture.stats.total_models, 2);
         assert_eq!(fixture.stats.available_models, 2);
         assert_eq!(fixture.stats.total_providers, 1);
-        
+
         // Verify both models are available
         assert!(fixture.discovered_models.iter().all(|m| m.available));
-        
+
         // Verify different health statuses
-        let health_statuses: Vec<_> = fixture.discovered_models
+        let health_statuses: Vec<_> = fixture
+            .discovered_models
             .iter()
             .map(|m| &m.provider_health)
             .collect();
-        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Healthy { .. })));
-        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Degraded { .. })));
+        assert!(health_statuses
+            .iter()
+            .any(|s| matches!(s, ProviderHealthStatus::Healthy { .. })));
+        assert!(health_statuses
+            .iter()
+            .any(|s| matches!(s, ProviderHealthStatus::Degraded { .. })));
     }
 
     #[test]
@@ -636,7 +678,7 @@ mod tests {
         let model1 = create_test_model("llama3.2:latest", "Llama 3.2");
         let model2 = create_test_model("qwen2.5:latest", "Qwen 2.5");
         let model3 = create_test_model("deepseek-r1:latest", "DeepSeek R1");
-        
+
         let discovered_models = vec![
             DiscoveredModel {
                 model: model1,
@@ -663,7 +705,7 @@ mod tests {
                 response_time: None,
             },
         ];
-        
+
         let fixture = ModelDiscoveryResult {
             discovered_models: discovered_models.clone(),
             stats: DiscoveryStats {
@@ -673,20 +715,29 @@ mod tests {
                 last_discovery: Some(std::time::Instant::now()),
             },
         };
-        
+
         assert_eq!(fixture.discovered_models.len(), 3);
         assert_eq!(fixture.stats.total_models, 3);
         assert_eq!(fixture.stats.available_models, 2);
         assert_eq!(fixture.stats.total_providers, 2);
-        
+
         // Verify availability counts
-        let available_count = fixture.discovered_models.iter().filter(|m| m.available).count();
-        let unavailable_count = fixture.discovered_models.iter().filter(|m| !m.available).count();
+        let available_count = fixture
+            .discovered_models
+            .iter()
+            .filter(|m| m.available)
+            .count();
+        let unavailable_count = fixture
+            .discovered_models
+            .iter()
+            .filter(|m| !m.available)
+            .count();
         assert_eq!(available_count, 2);
         assert_eq!(unavailable_count, 1);
-        
+
         // Verify provider distribution
-        let providers: std::collections::HashSet<_> = fixture.discovered_models
+        let providers: std::collections::HashSet<_> = fixture
+            .discovered_models
             .iter()
             .map(|m| &m.provider)
             .collect();

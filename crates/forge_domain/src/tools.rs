@@ -656,7 +656,14 @@ impl ToolsDiscriminants {
         Tools::iter()
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
-            .expect("Forge tool definition not found")
+            .unwrap_or_else(|| {
+                // Return a default error tool definition if not found
+                ToolDefinition {
+                    name: ToolName::new(format!("unknown_{}", self.name())),
+                    description: format!("Unknown tool: {}", self.name()),
+                    input_schema: schemars::schema_for!(()), // Empty schema for unknown tools
+                }
+            })
     }
 }
 
@@ -731,7 +738,7 @@ mod tests {
             .map(|tool| {
                 let definition = tool.definition();
                 serde_json::to_string_pretty(&definition)
-                    .expect("Failed to serialize tool definition to JSON")
+                    .unwrap_or_else(|e| format!("Error serializing tool definition: {}", e))
             })
             .collect::<Vec<_>>()
             .join("\n");

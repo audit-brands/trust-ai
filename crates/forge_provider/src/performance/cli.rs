@@ -6,8 +6,8 @@ use anyhow::Context as _;
 use tracing::{info, warn};
 
 use crate::performance::{
-    BenchmarkReport, OptimizationConfig, OptimizationResult, PerformanceConfig, PerformanceMonitor,
-    PerformanceSummary, ProviderMetrics, ModelLoadingOptimizer, ResourceMonitor,
+    BenchmarkReport, ModelLoadingOptimizer, OptimizationConfig, OptimizationResult,
+    PerformanceConfig, PerformanceMonitor, PerformanceSummary, ProviderMetrics, ResourceMonitor,
 };
 
 /// Performance CLI handler for managing performance monitoring and optimization
@@ -68,20 +68,23 @@ impl PerformanceCli {
         let optimizer = ModelLoadingOptimizer::new(optimization_config.clone());
         let resource_monitor = ResourceMonitor::new(optimization_config);
 
-        Ok(Self {
-            monitor,
-            optimizer,
-            resource_monitor,
-        })
+        Ok(Self { monitor, optimizer, resource_monitor })
     }
 
     /// Execute a performance command
-    pub async fn execute_command(&self, command: PerformanceCommand) -> anyhow::Result<PerformanceOutput> {
+    pub async fn execute_command(
+        &self,
+        command: PerformanceCommand,
+    ) -> anyhow::Result<PerformanceOutput> {
         match command.clone() {
             PerformanceCommand::Status => self.handle_status().await,
-            PerformanceCommand::Metrics { provider_name } => self.handle_metrics(provider_name).await,
+            PerformanceCommand::Metrics { provider_name } => {
+                self.handle_metrics(provider_name).await
+            }
             PerformanceCommand::Benchmark => self.handle_benchmark().await,
-            PerformanceCommand::Optimize { provider_name } => self.handle_optimize(provider_name).await,
+            PerformanceCommand::Optimize { provider_name } => {
+                self.handle_optimize(provider_name).await
+            }
             PerformanceCommand::Cache => self.handle_cache().await,
             PerformanceCommand::Resources => self.handle_resources().await,
             PerformanceCommand::Start => self.handle_start().await,
@@ -120,11 +123,14 @@ impl PerformanceCli {
     }
 
     /// Handle metrics command
-    async fn handle_metrics(&self, provider_name: Option<String>) -> anyhow::Result<PerformanceOutput> {
+    async fn handle_metrics(
+        &self,
+        provider_name: Option<String>,
+    ) -> anyhow::Result<PerformanceOutput> {
         match provider_name {
             Some(name) => {
                 info!("Getting metrics for provider: {}", name);
-                
+
                 if let Some(metrics) = self.monitor.get_provider_metrics(&name).await {
                     let message = format!(
                         "Metrics for {}:\n\
@@ -159,16 +165,16 @@ impl PerformanceCli {
                     Ok(PerformanceOutput {
                         command: PerformanceCommand::Metrics { provider_name: Some(name.clone()) },
                         success: false,
-                        message: format!("No metrics found for provider: {}", name),
+                        message: format!("No metrics found for provider: {name}"),
                         data: None,
                     })
                 }
             }
             None => {
                 info!("Getting metrics for all providers");
-                
+
                 let all_metrics = self.monitor.get_all_metrics().await;
-                
+
                 if all_metrics.is_empty() {
                     Ok(PerformanceOutput {
                         command: PerformanceCommand::Metrics { provider_name: None },
@@ -213,8 +219,7 @@ impl PerformanceCli {
             "Performance Benchmark Results:\n\
             • Overall Performance Score: {:.2}\n\
             • Benchmark Timestamp: {:?}\n\n",
-            report.overall_performance_score,
-            report.benchmark_timestamp
+            report.overall_performance_score, report.benchmark_timestamp
         );
 
         for (provider_name, comparison) in &report.provider_comparisons {
@@ -228,7 +233,11 @@ impl PerformanceCli {
                 comparison.response_time_vs_target,
                 comparison.success_rate_vs_target,
                 comparison.throughput_vs_target,
-                if comparison.meets_targets { "✅" } else { "❌" }
+                if comparison.meets_targets {
+                    "✅"
+                } else {
+                    "❌"
+                }
             ));
         }
 
@@ -241,13 +250,17 @@ impl PerformanceCli {
     }
 
     /// Handle optimize command
-    async fn handle_optimize(&self, provider_name: Option<String>) -> anyhow::Result<PerformanceOutput> {
+    async fn handle_optimize(
+        &self,
+        provider_name: Option<String>,
+    ) -> anyhow::Result<PerformanceOutput> {
         match provider_name {
             Some(name) => {
                 info!("Running optimization for provider: {}", name);
-                
+
                 // Run model loading optimization
-                let optimization_result = self.optimizer
+                let optimization_result = self
+                    .optimizer
                     .optimize_model_loading(&name, "default-model")
                     .await
                     .context("Failed to optimize model loading")?;
@@ -271,7 +284,10 @@ impl PerformanceCli {
                     format!(
                         "Optimization failed for {}: {}",
                         name,
-                        optimization_result.error.as_ref().unwrap_or(&"Unknown error".to_string())
+                        optimization_result
+                            .error
+                            .as_ref()
+                            .unwrap_or(&"Unknown error".to_string())
                     )
                 };
 
@@ -280,14 +296,16 @@ impl PerformanceCli {
                     command: PerformanceCommand::Optimize { provider_name: Some(name) },
                     success,
                     message,
-                    data: Some(PerformanceData::OptimizationResults(vec![optimization_result])),
+                    data: Some(PerformanceData::OptimizationResults(vec![
+                        optimization_result,
+                    ])),
                 })
             }
             None => {
                 info!("Generating optimization recommendations for all providers");
-                
+
                 let recommendations = self.monitor.generate_recommendations().await;
-                
+
                 if recommendations.is_empty() {
                     Ok(PerformanceOutput {
                         command: PerformanceCommand::Optimize { provider_name: None },
@@ -297,7 +315,7 @@ impl PerformanceCli {
                     })
                 } else {
                     let mut message = "Optimization Recommendations:\n\n".to_string();
-                    
+
                     for (i, rec) in recommendations.iter().enumerate() {
                         message.push_str(&format!(
                             "{}. {} ({:?} Priority)\n\
@@ -307,12 +325,15 @@ impl PerformanceCli {
                             Impact: {}\n\n",
                             i + 1,
                             match rec.recommendation_type {
-                                crate::performance::RecommendationType::ModelLoading => "Model Loading",
+                                crate::performance::RecommendationType::ModelLoading =>
+                                    "Model Loading",
                                 crate::performance::RecommendationType::Memory => "Memory",
                                 crate::performance::RecommendationType::Cpu => "CPU",
                                 crate::performance::RecommendationType::Network => "Network",
-                                crate::performance::RecommendationType::Configuration => "Configuration",
-                                crate::performance::RecommendationType::ProviderSelection => "Provider Selection",
+                                crate::performance::RecommendationType::Configuration =>
+                                    "Configuration",
+                                crate::performance::RecommendationType::ProviderSelection =>
+                                    "Provider Selection",
                             },
                             rec.priority,
                             rec.provider_name,
@@ -408,7 +429,9 @@ impl PerformanceCli {
     async fn handle_start(&self) -> anyhow::Result<PerformanceOutput> {
         info!("Starting performance monitoring");
 
-        self.monitor.start().await
+        self.monitor
+            .start()
+            .await
             .context("Failed to start performance monitoring")?;
 
         Ok(PerformanceOutput {
@@ -437,14 +460,23 @@ impl PerformanceCli {
 
 impl Default for PerformanceCli {
     fn default() -> Self {
-        Self::new().expect("Failed to create PerformanceCli")
+        // Create default configurations
+        let performance_config = PerformanceConfig::default();
+        let optimization_config = OptimizationConfig::default();
+        
+        // Create components with default configurations
+        let monitor = PerformanceMonitor::new(performance_config);
+        let optimizer = ModelLoadingOptimizer::new(optimization_config.clone());
+        let resource_monitor = ResourceMonitor::new(optimization_config);
+        
+        Self { monitor, optimizer, resource_monitor }
     }
 }
 
 /// Parse performance command from CLI input
 pub fn parse_performance_command(input: &str) -> anyhow::Result<PerformanceCommand> {
-    let parts: Vec<&str> = input.trim().split_whitespace().collect();
-    
+    let parts: Vec<&str> = input.split_whitespace().collect();
+
     if parts.is_empty() {
         return Ok(PerformanceCommand::Status);
     }
@@ -479,12 +511,10 @@ pub fn parse_performance_command(input: &str) -> anyhow::Result<PerformanceComma
 /// Format performance output for display
 pub fn format_performance_output(output: &PerformanceOutput) -> String {
     let status_indicator = if output.success { "✅" } else { "❌" };
-    
+
     format!(
         "{} Performance Command: {:?}\n\n{}",
-        status_indicator,
-        output.command,
-        output.message
+        status_indicator, output.command, output.message
     )
 }
 
@@ -504,7 +534,7 @@ mod tests {
     async fn test_status_command() {
         let cli = PerformanceCli::new().unwrap();
         let result = cli.execute_command(PerformanceCommand::Status).await;
-        
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.success);
@@ -514,19 +544,24 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_command() {
         let cli = PerformanceCli::new().unwrap();
-        let result = cli.execute_command(PerformanceCommand::Metrics { provider_name: None }).await;
-        
+        let result = cli
+            .execute_command(PerformanceCommand::Metrics { provider_name: None })
+            .await;
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.success);
-        assert!(output.message.contains("No performance metrics available") || output.message.contains("Performance Metrics"));
+        assert!(
+            output.message.contains("No performance metrics available")
+                || output.message.contains("Performance Metrics")
+        );
     }
 
     #[tokio::test]
     async fn test_cache_command() {
         let cli = PerformanceCli::new().unwrap();
         let result = cli.execute_command(PerformanceCommand::Cache).await;
-        
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.success);
@@ -537,7 +572,7 @@ mod tests {
     async fn test_resources_command() {
         let cli = PerformanceCli::new().unwrap();
         let result = cli.execute_command(PerformanceCommand::Resources).await;
-        
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.success);

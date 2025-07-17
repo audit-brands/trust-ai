@@ -3,14 +3,13 @@
 mod cli;
 mod optimization;
 
-pub use cli::*;
-pub use optimization::*;
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub use cli::*;
 use derive_setters::Setters;
+pub use optimization::*;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
@@ -220,10 +219,10 @@ impl PerformanceMonitor {
         }
 
         info!("Starting performance monitoring");
-        
+
         // Start metrics collection task
         self.start_metrics_collection().await;
-        
+
         Ok(())
     }
 
@@ -271,7 +270,7 @@ impl PerformanceMonitor {
     /// Update provider metrics based on a new measurement
     async fn update_provider_metrics(&self, measurement: &PerformanceMeasurement) {
         let mut metrics = self.metrics.write().await;
-        
+
         let provider_metrics = metrics
             .entry(measurement.provider_name.clone())
             .or_insert_with(|| ProviderMetrics::new(&measurement.provider_name));
@@ -298,12 +297,12 @@ impl PerformanceMonitor {
             // Update running averages and extremes
             let total = provider_metrics.total_requests;
             let prev_avg = provider_metrics.avg_response_time;
-            provider_metrics.avg_response_time = 
-                Duration::from_nanos(
-                    ((prev_avg.as_nanos() * (total - 1) as u128 + response_time.as_nanos()) / total as u128)
-                        .try_into()
-                        .unwrap_or(u64::MAX)
-                );
+            provider_metrics.avg_response_time = Duration::from_nanos(
+                ((prev_avg.as_nanos() * (total - 1) as u128 + response_time.as_nanos())
+                    / total as u128)
+                    .try_into()
+                    .unwrap_or(u64::MAX),
+            );
 
             if response_time < provider_metrics.min_response_time {
                 provider_metrics.min_response_time = response_time;
@@ -315,7 +314,8 @@ impl PerformanceMonitor {
 
         // Calculate throughput (simplified)
         let time_window = Duration::from_secs(60); // 1 minute window
-        provider_metrics.throughput = provider_metrics.total_requests as f64 / time_window.as_secs() as f64;
+        provider_metrics.throughput =
+            provider_metrics.total_requests as f64 / time_window.as_secs() as f64;
 
         provider_metrics.last_updated = Instant::now();
     }
@@ -345,10 +345,15 @@ impl PerformanceMonitor {
             0.0
         };
 
-        let avg_response_times: Vec<Duration> = metrics.values().map(|m| m.avg_response_time).collect();
+        let avg_response_times: Vec<Duration> =
+            metrics.values().map(|m| m.avg_response_time).collect();
         let overall_avg_response_time = if !avg_response_times.is_empty() {
             let total_nanos: u128 = avg_response_times.iter().map(|d| d.as_nanos()).sum();
-            Duration::from_nanos((total_nanos / avg_response_times.len() as u128).try_into().unwrap_or(u64::MAX))
+            Duration::from_nanos(
+                (total_nanos / avg_response_times.len() as u128)
+                    .try_into()
+                    .unwrap_or(u64::MAX),
+            )
         } else {
             Duration::from_millis(0)
         };
@@ -401,7 +406,9 @@ impl PerformanceMonitor {
                         success_rate * 100.0,
                         self.config.alert_thresholds.min_success_rate * 100.0
                     ),
-                    suggested_action: "Check provider health and consider fallback to alternative providers".to_string(),
+                    suggested_action:
+                        "Check provider health and consider fallback to alternative providers"
+                            .to_string(),
                     expected_impact: "Improved reliability and reduced failure rates".to_string(),
                     priority: Priority::Critical,
                 });
@@ -415,11 +422,13 @@ impl PerformanceMonitor {
                         recommendation_type: RecommendationType::Memory,
                         description: format!(
                             "Memory usage ({}MB) exceeds threshold ({}MB)",
-                            memory_usage,
-                            self.config.alert_thresholds.max_memory_usage_mb
+                            memory_usage, self.config.alert_thresholds.max_memory_usage_mb
                         ),
-                        suggested_action: "Consider using smaller models or optimizing memory allocation".to_string(),
-                        expected_impact: "Reduced memory footprint and improved system stability".to_string(),
+                        suggested_action:
+                            "Consider using smaller models or optimizing memory allocation"
+                                .to_string(),
+                        expected_impact: "Reduced memory footprint and improved system stability"
+                            .to_string(),
                         priority: Priority::Medium,
                     });
                 }
@@ -431,12 +440,12 @@ impl PerformanceMonitor {
                     recommendations.push(OptimizationRecommendation {
                         provider_name: provider_name.clone(),
                         recommendation_type: RecommendationType::ModelLoading,
-                        description: format!(
-                            "Model loading time ({:?}) is slow",
-                            loading_time
-                        ),
-                        suggested_action: "Consider model caching, preloading, or using faster storage".to_string(),
-                        expected_impact: "Faster startup times and improved user experience".to_string(),
+                        description: format!("Model loading time ({loading_time:?}) is slow"),
+                        suggested_action:
+                            "Consider model caching, preloading, or using faster storage"
+                                .to_string(),
+                        expected_impact: "Faster startup times and improved user experience"
+                            .to_string(),
                         priority: Priority::Medium,
                     });
                 }
@@ -474,7 +483,7 @@ impl PerformanceMonitor {
         }
 
         let overall_score = self.calculate_overall_score(&provider_comparisons).await;
-        
+
         BenchmarkReport {
             provider_comparisons,
             overall_performance_score: overall_score,
@@ -510,7 +519,8 @@ impl PerformanceMonitor {
 
     /// Check if provider meets all benchmark targets
     fn meets_all_targets(&self, metrics: &ProviderMetrics) -> bool {
-        let response_time_ok = metrics.avg_response_time <= self.config.benchmark_targets.target_response_time;
+        let response_time_ok =
+            metrics.avg_response_time <= self.config.benchmark_targets.target_response_time;
         let success_rate = if metrics.total_requests > 0 {
             metrics.successful_requests as f64 / metrics.total_requests as f64
         } else {
@@ -523,17 +533,23 @@ impl PerformanceMonitor {
     }
 
     /// Calculate overall performance score
-    async fn calculate_overall_score(&self, comparisons: &HashMap<String, ProviderBenchmarkComparison>) -> f64 {
+    async fn calculate_overall_score(
+        &self,
+        comparisons: &HashMap<String, ProviderBenchmarkComparison>,
+    ) -> f64 {
         if comparisons.is_empty() {
             return 0.0;
         }
 
-        let total_score: f64 = comparisons.values().map(|comp| {
-            // Weighted average of different metrics
-            (comp.response_time_vs_target * 0.4) +
-            (comp.success_rate_vs_target * 0.4) +
-            (comp.throughput_vs_target * 0.2)
-        }).sum();
+        let total_score: f64 = comparisons
+            .values()
+            .map(|comp| {
+                // Weighted average of different metrics
+                (comp.response_time_vs_target * 0.4)
+                    + (comp.success_rate_vs_target * 0.4)
+                    + (comp.throughput_vs_target * 0.2)
+            })
+            .sum();
 
         total_score / comparisons.len() as f64
     }
@@ -570,10 +586,7 @@ pub struct ProviderBenchmarkComparison {
 
 impl PerformanceMeasurement {
     /// Create a new performance measurement
-    pub fn new(
-        provider_name: String,
-        request_type: RequestType,
-    ) -> Self {
+    pub fn new(provider_name: String, request_type: RequestType) -> Self {
         Self {
             provider_name,
             start_time: Instant::now(),
@@ -706,7 +719,7 @@ mod tests {
     async fn test_performance_monitor_creation() {
         let config = PerformanceConfig::default();
         let monitor = PerformanceMonitor::new(config);
-        
+
         let metrics = monitor.get_all_metrics().await;
         assert_eq!(metrics.len(), 0);
     }
@@ -715,17 +728,16 @@ mod tests {
     async fn test_record_measurement() {
         let config = PerformanceConfig::default();
         let monitor = PerformanceMonitor::new(config);
-        
-        let measurement = PerformanceMeasurement::new(
-            "test-provider".to_string(),
-            RequestType::Inference,
-        ).complete_success();
-        
+
+        let measurement =
+            PerformanceMeasurement::new("test-provider".to_string(), RequestType::Inference)
+                .complete_success();
+
         monitor.record_measurement(measurement).await;
-        
+
         let metrics = monitor.get_provider_metrics("test-provider").await;
         assert!(metrics.is_some());
-        
+
         let metrics = metrics.unwrap();
         assert_eq!(metrics.total_requests, 1);
         assert_eq!(metrics.successful_requests, 1);
@@ -736,16 +748,15 @@ mod tests {
     async fn test_performance_summary() {
         let config = PerformanceConfig::default();
         let monitor = PerformanceMonitor::new(config);
-        
+
         // Record some measurements
         for i in 0..5 {
-            let measurement = PerformanceMeasurement::new(
-                format!("provider-{}", i),
-                RequestType::Inference,
-            ).complete_success();
+            let measurement =
+                PerformanceMeasurement::new(format!("provider-{}", i), RequestType::Inference)
+                    .complete_success();
             monitor.record_measurement(measurement).await;
         }
-        
+
         let summary = monitor.get_performance_summary().await;
         assert_eq!(summary.total_providers, 5);
         assert_eq!(summary.total_requests, 5);
@@ -759,7 +770,7 @@ mod tests {
         metrics.total_requests = 10;
         metrics.successful_requests = 8;
         metrics.failed_requests = 2;
-        
+
         assert_eq!(metrics.success_rate(), 80.0);
         assert_eq!(metrics.failure_rate(), 20.0);
     }
@@ -777,7 +788,7 @@ mod tests {
             request_type: RequestType::Inference,
             metadata: HashMap::new(),
         };
-        
+
         assert_eq!(measurement.duration(), Duration::from_millis(100));
     }
 
@@ -786,9 +797,9 @@ mod tests {
         let mut config = PerformanceConfig::default();
         config.alert_thresholds.max_response_time = Duration::from_millis(100);
         config.alert_thresholds.min_success_rate = 0.9;
-        
+
         let monitor = PerformanceMonitor::new(config);
-        
+
         // Record a slow, failing measurement
         let measurement = PerformanceMeasurement {
             provider_name: "slow-provider".to_string(),
@@ -800,16 +811,20 @@ mod tests {
             request_type: RequestType::Inference,
             metadata: HashMap::new(),
         };
-        
+
         monitor.record_measurement(measurement).await;
-        
+
         let recommendations = monitor.generate_recommendations().await;
         assert!(!recommendations.is_empty());
-        
+
         // Should have recommendations for both slow response and low success rate
-        let has_network_rec = recommendations.iter().any(|r| matches!(r.recommendation_type, RecommendationType::Network));
-        let has_provider_rec = recommendations.iter().any(|r| matches!(r.recommendation_type, RecommendationType::ProviderSelection));
-        
+        let has_network_rec = recommendations
+            .iter()
+            .any(|r| matches!(r.recommendation_type, RecommendationType::Network));
+        let has_provider_rec = recommendations
+            .iter()
+            .any(|r| matches!(r.recommendation_type, RecommendationType::ProviderSelection));
+
         assert!(has_network_rec);
         assert!(has_provider_rec);
     }
@@ -820,9 +835,9 @@ mod tests {
         config.benchmark_targets.target_response_time = Duration::from_millis(100);
         config.benchmark_targets.target_success_rate = 0.95;
         config.benchmark_targets.target_throughput = 5.0;
-        
+
         let monitor = PerformanceMonitor::new(config);
-        
+
         // Record a good measurement
         let measurement = PerformanceMeasurement {
             provider_name: "fast-provider".to_string(),
@@ -834,12 +849,12 @@ mod tests {
             request_type: RequestType::Inference,
             metadata: HashMap::new(),
         };
-        
+
         monitor.record_measurement(measurement).await;
-        
+
         let report = monitor.benchmark_against_targets().await;
         assert!(!report.provider_comparisons.is_empty());
-        
+
         let comparison = report.provider_comparisons.get("fast-provider").unwrap();
         assert!(comparison.response_time_vs_target > 1.0); // Faster than target
         assert!(comparison.success_rate_vs_target > 0.0);

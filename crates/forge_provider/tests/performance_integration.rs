@@ -2,13 +2,12 @@
 
 use std::time::Duration;
 
-use pretty_assertions::assert_eq;
-
 use forge_provider::performance::{
-    PerformanceConfig, PerformanceMonitor, PerformanceMeasurement, RequestType,
-    OptimizationConfig, ModelLoadingOptimizer, ResourceMonitor,
-    PerformanceCli, PerformanceCommand, parse_performance_command,
+    parse_performance_command, ModelLoadingOptimizer, OptimizationConfig, PerformanceCli,
+    PerformanceCommand, PerformanceConfig, PerformanceMeasurement, PerformanceMonitor, RequestType,
+    ResourceMonitor,
 };
+use pretty_assertions::assert_eq;
 
 #[tokio::test]
 async fn test_performance_monitoring_integration() {
@@ -21,22 +20,16 @@ async fn test_performance_monitoring_integration() {
     assert!(start_result.is_ok());
 
     // Record some test measurements
-    let measurement1 = PerformanceMeasurement::new(
-        "ollama".to_string(),
-        RequestType::Inference,
-    ).complete_success()
-    .with_model("llama2".to_string())
-    .with_response_size(1024);
+    let measurement1 = PerformanceMeasurement::new("ollama".to_string(), RequestType::Inference)
+        .complete_success()
+        .with_model("llama2".to_string())
+        .with_response_size(1024);
 
-    let measurement2 = PerformanceMeasurement::new(
-        "ollama".to_string(),
-        RequestType::HealthCheck,
-    ).complete_success();
+    let measurement2 = PerformanceMeasurement::new("ollama".to_string(), RequestType::HealthCheck)
+        .complete_success();
 
-    let measurement3 = PerformanceMeasurement::new(
-        "anthropic".to_string(),
-        RequestType::Inference,
-    ).complete_failure();
+    let measurement3 = PerformanceMeasurement::new("anthropic".to_string(), RequestType::Inference)
+        .complete_failure();
 
     // Record measurements
     monitor.record_measurement(measurement1).await;
@@ -67,7 +60,8 @@ async fn test_performance_monitoring_integration() {
     assert_eq!(summary.total_requests, 3);
     assert_eq!(summary.active_providers, 2);
     assert_eq!(summary.measurements_count, 3);
-    assert_eq!(summary.overall_success_rate, 2.0 / 3.0); // 2 successful out of 3 total
+    assert_eq!(summary.overall_success_rate, 2.0 / 3.0); // 2 successful out of
+                                                         // 3 total
 }
 
 #[tokio::test]
@@ -121,8 +115,12 @@ async fn test_resource_monitoring_integration() {
     // Test recommendations
     let recommendations = monitor.get_resource_recommendations().await;
     // With default mock values, should not have critical recommendations
-    let critical_count = recommendations.iter()
-        .filter(|r| r.severity == forge_provider::performance::optimization::RecommendationSeverity::Critical)
+    let critical_count = recommendations
+        .iter()
+        .filter(|r| {
+            r.severity
+                == forge_provider::performance::optimization::RecommendationSeverity::Critical
+        })
         .count();
     assert_eq!(critical_count, 0);
 }
@@ -134,10 +132,9 @@ async fn test_benchmark_integration() {
     let monitor = PerformanceMonitor::new(config);
 
     // Record measurements for benchmark
-    let fast_measurement = PerformanceMeasurement::new(
-        "fast-provider".to_string(),
-        RequestType::Inference,
-    ).complete_success();
+    let fast_measurement =
+        PerformanceMeasurement::new("fast-provider".to_string(), RequestType::Inference)
+            .complete_success();
 
     let slow_measurement = PerformanceMeasurement {
         provider_name: "slow-provider".to_string(),
@@ -183,7 +180,7 @@ async fn test_optimization_recommendations_integration() {
         provider_name: "problematic-provider".to_string(),
         start_time: std::time::Instant::now(),
         end_time: std::time::Instant::now() + Duration::from_millis(500), // Slow
-        success: false, // Failed
+        success: false,                                                   // Failed
         response_size_bytes: None,
         model_name: None,
         request_type: RequestType::Inference,
@@ -198,17 +195,24 @@ async fn test_optimization_recommendations_integration() {
 
     // Should have recommendations for both slow response and low success rate
     let has_network_rec = recommendations.iter().any(|r| {
-        matches!(r.recommendation_type, forge_provider::performance::optimization::RecommendationType::Network)
+        matches!(
+            r.recommendation_type,
+            forge_provider::performance::optimization::RecommendationType::Network
+        )
     });
     let has_provider_rec = recommendations.iter().any(|r| {
-        matches!(r.recommendation_type, forge_provider::performance::optimization::RecommendationType::ProviderSelection)
+        matches!(
+            r.recommendation_type,
+            forge_provider::performance::optimization::RecommendationType::ProviderSelection
+        )
     });
 
     assert!(has_network_rec);
     assert!(has_provider_rec);
 
     // Check recommendation priorities
-    let critical_recommendations: Vec<_> = recommendations.iter()
+    let critical_recommendations: Vec<_> = recommendations
+        .iter()
         .filter(|r| r.priority == forge_provider::performance::optimization::Priority::Critical)
         .collect();
     assert!(!critical_recommendations.is_empty());
@@ -229,7 +233,9 @@ async fn test_cli_integration() {
     assert!(status_output.message.contains("Performance Status"));
 
     // Test metrics command
-    let metrics_result = cli.execute_command(PerformanceCommand::Metrics { provider_name: None }).await;
+    let metrics_result = cli
+        .execute_command(PerformanceCommand::Metrics { provider_name: None })
+        .await;
     assert!(metrics_result.is_ok());
     let metrics_output = metrics_result.unwrap();
     assert!(metrics_output.success);
@@ -253,7 +259,9 @@ async fn test_cli_integration() {
     assert!(benchmark_result.is_ok());
     let benchmark_output = benchmark_result.unwrap();
     assert!(benchmark_output.success);
-    assert!(benchmark_output.message.contains("Performance Benchmark Results"));
+    assert!(benchmark_output
+        .message
+        .contains("Performance Benchmark Results"));
 
     // Test start command
     let start_result = cli.execute_command(PerformanceCommand::Start).await;
@@ -288,7 +296,10 @@ fn test_cli_command_parsing() {
 
     let benchmark_cmd = parse_performance_command("benchmark");
     assert!(benchmark_cmd.is_ok());
-    assert!(matches!(benchmark_cmd.unwrap(), PerformanceCommand::Benchmark));
+    assert!(matches!(
+        benchmark_cmd.unwrap(),
+        PerformanceCommand::Benchmark
+    ));
 
     let optimize_cmd = parse_performance_command("optimize");
     assert!(optimize_cmd.is_ok());
@@ -312,7 +323,10 @@ fn test_cli_command_parsing() {
 
     let resources_cmd = parse_performance_command("resources");
     assert!(resources_cmd.is_ok());
-    assert!(matches!(resources_cmd.unwrap(), PerformanceCommand::Resources));
+    assert!(matches!(
+        resources_cmd.unwrap(),
+        PerformanceCommand::Resources
+    ));
 
     let start_cmd = parse_performance_command("start");
     assert!(start_cmd.is_ok());
@@ -335,7 +349,7 @@ fn test_cli_command_parsing() {
 #[tokio::test]
 async fn test_end_to_end_performance_workflow() {
     // This test simulates a complete performance monitoring workflow
-    
+
     // 1. Create CLI and start monitoring
     let cli = PerformanceCli::new().unwrap();
     let start_result = cli.execute_command(PerformanceCommand::Start).await;
@@ -347,56 +361,76 @@ async fn test_end_to_end_performance_workflow() {
 
     // Simulate successful Ollama requests
     for i in 0..10 {
-        let measurement = PerformanceMeasurement::new(
-            "ollama".to_string(),
-            RequestType::Inference,
-        ).complete_success()
-        .with_model(format!("model-{}", i % 3))
-        .with_response_size(1024 + i * 100);
-        
+        let measurement = PerformanceMeasurement::new("ollama".to_string(), RequestType::Inference)
+            .complete_success()
+            .with_model(format!("model-{}", i % 3))
+            .with_response_size(1024 + i * 100);
+
         monitor.record_measurement(measurement).await;
     }
 
     // Simulate some failed Anthropic requests
     for i in 0..3 {
-        let measurement = PerformanceMeasurement::new(
-            "anthropic".to_string(),
-            RequestType::Inference,
-        ).complete_failure()
-        .with_model("claude-3".to_string());
-        
+        let measurement =
+            PerformanceMeasurement::new("anthropic".to_string(), RequestType::Inference)
+                .complete_failure()
+                .with_model("claude-3".to_string());
+
         monitor.record_measurement(measurement).await;
     }
 
     // 3. Check overall status
-    let status_result = cli.execute_command(PerformanceCommand::Status).await.unwrap();
+    let status_result = cli
+        .execute_command(PerformanceCommand::Status)
+        .await
+        .unwrap();
     assert!(status_result.success);
     assert!(status_result.message.contains("Total Providers"));
 
     // 4. Get detailed metrics
-    let metrics_result = cli.execute_command(PerformanceCommand::Metrics { provider_name: None }).await.unwrap();
+    let metrics_result = cli
+        .execute_command(PerformanceCommand::Metrics { provider_name: None })
+        .await
+        .unwrap();
     assert!(metrics_result.success);
 
     // 5. Run optimization
-    let optimize_result = cli.execute_command(PerformanceCommand::Optimize { provider_name: Some("ollama".to_string()) }).await.unwrap();
+    let optimize_result = cli
+        .execute_command(PerformanceCommand::Optimize { provider_name: Some("ollama".to_string()) })
+        .await
+        .unwrap();
     assert!(optimize_result.success);
 
     // 6. Check cache after optimization
-    let cache_result = cli.execute_command(PerformanceCommand::Cache).await.unwrap();
+    let cache_result = cli
+        .execute_command(PerformanceCommand::Cache)
+        .await
+        .unwrap();
     assert!(cache_result.success);
     assert!(cache_result.message.contains("Model Cache Statistics"));
 
     // 7. Run benchmark
-    let benchmark_result = cli.execute_command(PerformanceCommand::Benchmark).await.unwrap();
+    let benchmark_result = cli
+        .execute_command(PerformanceCommand::Benchmark)
+        .await
+        .unwrap();
     assert!(benchmark_result.success);
-    assert!(benchmark_result.message.contains("Performance Benchmark Results"));
+    assert!(benchmark_result
+        .message
+        .contains("Performance Benchmark Results"));
 
     // 8. Check system resources
-    let resources_result = cli.execute_command(PerformanceCommand::Resources).await.unwrap();
+    let resources_result = cli
+        .execute_command(PerformanceCommand::Resources)
+        .await
+        .unwrap();
     assert!(resources_result.success);
     assert!(resources_result.message.contains("System Resource Usage"));
 
     // 9. Generate optimization recommendations
-    let optimize_all_result = cli.execute_command(PerformanceCommand::Optimize { provider_name: None }).await.unwrap();
+    let optimize_all_result = cli
+        .execute_command(PerformanceCommand::Optimize { provider_name: None })
+        .await
+        .unwrap();
     assert!(optimize_all_result.success);
 }

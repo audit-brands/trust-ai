@@ -1,15 +1,18 @@
 //! Test utilities and mock services for local provider testing
 
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use forge_domain::model::{Model, ModelId};
 use tokio::sync::RwLock;
 
-use crate::config::local_ai::{LocalAiConfig, ProviderHealthStatus, ProviderHealthChecker};
-use crate::health::{HealthMonitor, ProviderHealthInfo, HealthCheckResult};
-use crate::selection::{ProviderSelector, ProviderMetrics, ProviderType};
-use crate::discovery::{ModelDiscoveryService, DiscoveredModel, ModelDiscoveryResult, DiscoveryStats};
-use forge_domain::model::{Model, ModelId};
+use crate::config::local_ai::{LocalAiConfig, ProviderHealthChecker, ProviderHealthStatus};
+use crate::discovery::{
+    DiscoveredModel, DiscoveryStats, ModelDiscoveryResult, ModelDiscoveryService,
+};
+use crate::health::{HealthCheckResult, HealthMonitor, ProviderHealthInfo};
+use crate::selection::{ProviderMetrics, ProviderSelector, ProviderType};
 
 /// Mock health checker for testing
 pub struct MockHealthChecker {
@@ -177,13 +180,13 @@ impl TestFixtures {
     /// Create a test local AI configuration with multiple providers
     pub fn multi_provider_config() -> LocalAiConfig {
         let mut config = LocalAiConfig::new();
-        
+
         // Add primary Ollama provider
         config.add_ollama_provider("ollama-primary", "http://localhost:11434");
-        
+
         // Add backup Ollama provider
         config.add_ollama_provider("ollama-backup", "http://localhost:11435");
-        
+
         config
     }
 
@@ -245,10 +248,8 @@ impl TestFixtures {
     pub fn discovery_result() -> ModelDiscoveryResult {
         let discovered_models = Self::discovered_models();
         let available_count = discovered_models.iter().filter(|m| m.available).count();
-        let providers: std::collections::HashSet<_> = discovered_models
-            .iter()
-            .map(|m| &m.provider)
-            .collect();
+        let providers: std::collections::HashSet<_> =
+            discovered_models.iter().map(|m| &m.provider).collect();
 
         ModelDiscoveryResult {
             discovered_models,
@@ -264,7 +265,7 @@ impl TestFixtures {
     /// Create test provider health info
     pub fn provider_health_info(status: ProviderHealthStatus) -> ProviderHealthInfo {
         let success = matches!(status, ProviderHealthStatus::Healthy { .. });
-        
+
         ProviderHealthInfo {
             status,
             last_checked: Instant::now(),
@@ -275,7 +276,11 @@ impl TestFixtures {
                 timestamp: Instant::now(),
                 success,
                 response_time: Duration::from_millis(if success { 100 } else { 2000 }),
-                error: if success { None } else { Some("Test error".to_string()) },
+                error: if success {
+                    None
+                } else {
+                    Some("Test error".to_string())
+                },
             }],
         }
     }
@@ -339,9 +344,7 @@ pub struct MockHealthMonitor {
 impl MockHealthMonitor {
     /// Create a new mock health monitor
     pub fn new() -> Self {
-        Self {
-            health_status: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { health_status: Arc::new(RwLock::new(HashMap::new())) }
     }
 
     /// Add a provider with specific health status
@@ -399,13 +402,14 @@ impl MockHealthMonitor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_create_test_model() {
         let fixture = create_test_model("llama3.2:latest", "Llama 3.2");
-        
+
         assert_eq!(fixture.id.as_str(), "llama3.2:latest");
         assert_eq!(fixture.name.unwrap(), "Llama 3.2");
         assert!(fixture.description.unwrap().contains("Test model"));
@@ -416,34 +420,43 @@ mod tests {
     #[test]
     fn test_mock_health_checker_healthy() {
         let fixture = MockHealthChecker::healthy();
-        
+
         assert!(!fixture.should_fail);
         assert_eq!(fixture.response_delay, Duration::from_millis(100));
-        assert!(matches!(fixture.status, ProviderHealthStatus::Healthy { .. }));
+        assert!(matches!(
+            fixture.status,
+            ProviderHealthStatus::Healthy { .. }
+        ));
     }
 
     #[test]
     fn test_mock_health_checker_degraded() {
         let fixture = MockHealthChecker::degraded();
-        
+
         assert!(!fixture.should_fail);
         assert_eq!(fixture.response_delay, Duration::from_millis(2000));
-        assert!(matches!(fixture.status, ProviderHealthStatus::Degraded { .. }));
+        assert!(matches!(
+            fixture.status,
+            ProviderHealthStatus::Degraded { .. }
+        ));
     }
 
     #[test]
     fn test_mock_health_checker_unhealthy() {
         let fixture = MockHealthChecker::unhealthy();
-        
+
         assert!(!fixture.should_fail);
         assert_eq!(fixture.response_delay, Duration::from_millis(5000));
-        assert!(matches!(fixture.status, ProviderHealthStatus::Unhealthy { .. }));
+        assert!(matches!(
+            fixture.status,
+            ProviderHealthStatus::Unhealthy { .. }
+        ));
     }
 
     #[test]
     fn test_mock_health_checker_failing() {
         let fixture = MockHealthChecker::failing();
-        
+
         assert!(fixture.should_fail);
         assert_eq!(fixture.response_delay, Duration::from_millis(100));
     }
@@ -451,11 +464,14 @@ mod tests {
     #[test]
     fn test_mock_ollama_service_creation() {
         let fixture = MockOllamaService::new();
-        
+
         assert_eq!(fixture.available_models.len(), 3);
         assert!(!fixture.should_fail);
         assert_eq!(fixture.response_delay, Duration::from_millis(100));
-        assert!(matches!(fixture.health_status, ProviderHealthStatus::Healthy { .. }));
+        assert!(matches!(
+            fixture.health_status,
+            ProviderHealthStatus::Healthy { .. }
+        ));
     }
 
     #[test]
@@ -474,7 +490,7 @@ mod tests {
     fn test_test_fixtures_test_models() {
         let fixture = TestFixtures::test_models();
         assert_eq!(fixture.len(), 5);
-        
+
         // Verify all models have required fields
         for model in fixture {
             assert!(model.name.is_some());
@@ -487,18 +503,24 @@ mod tests {
     fn test_test_fixtures_discovered_models() {
         let fixture = TestFixtures::discovered_models();
         assert_eq!(fixture.len(), 3);
-        
+
         // Verify different health statuses
         let health_statuses: Vec<_> = fixture.iter().map(|m| &m.provider_health).collect();
-        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Healthy { .. })));
-        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Degraded { .. })));
-        assert!(health_statuses.iter().any(|s| matches!(s, ProviderHealthStatus::Unhealthy { .. })));
+        assert!(health_statuses
+            .iter()
+            .any(|s| matches!(s, ProviderHealthStatus::Healthy { .. })));
+        assert!(health_statuses
+            .iter()
+            .any(|s| matches!(s, ProviderHealthStatus::Degraded { .. })));
+        assert!(health_statuses
+            .iter()
+            .any(|s| matches!(s, ProviderHealthStatus::Unhealthy { .. })));
     }
 
     #[test]
     fn test_test_fixtures_discovery_result() {
         let fixture = TestFixtures::discovery_result();
-        
+
         assert_eq!(fixture.stats.total_models, 3);
         assert!(fixture.stats.available_models <= fixture.stats.total_models);
         assert!(fixture.stats.total_providers > 0);
@@ -509,8 +531,11 @@ mod tests {
     fn test_test_fixtures_provider_health_info() {
         let healthy_status = create_healthy_status();
         let fixture = TestFixtures::provider_health_info(healthy_status.clone());
-        
-        assert!(matches!(fixture.status, ProviderHealthStatus::Healthy { .. }));
+
+        assert!(matches!(
+            fixture.status,
+            ProviderHealthStatus::Healthy { .. }
+        ));
         assert_eq!(fixture.consecutive_successes, 1);
         assert_eq!(fixture.consecutive_failures, 0);
         assert_eq!(fixture.check_history.len(), 1);
@@ -520,7 +545,7 @@ mod tests {
     #[test]
     fn test_test_fixtures_provider_metrics() {
         let fixture = TestFixtures::provider_metrics(ProviderType::Local);
-        
+
         assert_eq!(fixture.provider_type, ProviderType::Local);
         assert_eq!(fixture.total_requests, 10);
         assert_eq!(fixture.successful_requests, 8);
@@ -531,26 +556,38 @@ mod tests {
     #[tokio::test]
     async fn test_mock_health_monitor() {
         let fixture = MockHealthMonitor::new();
-        
+
         // Add providers with different health statuses
-        fixture.add_provider("healthy".to_string(), create_healthy_status()).await;
-        fixture.add_provider("degraded".to_string(), create_degraded_status()).await;
-        fixture.add_provider("unhealthy".to_string(), create_unhealthy_status()).await;
-        
+        fixture
+            .add_provider("healthy".to_string(), create_healthy_status())
+            .await;
+        fixture
+            .add_provider("degraded".to_string(), create_degraded_status())
+            .await;
+        fixture
+            .add_provider("unhealthy".to_string(), create_unhealthy_status())
+            .await;
+
         let health_status = fixture.get_health_status().await;
         assert_eq!(health_status.len(), 3);
-        
+
         // Test provider usability
         assert!(fixture.is_provider_usable("healthy").await);
         assert!(fixture.is_provider_usable("degraded").await); // Degraded is still usable
         assert!(!fixture.is_provider_usable("unhealthy").await);
-        
+
         // Test provider sorting by health
         let sorted_providers = fixture.get_providers_by_health().await;
         assert_eq!(sorted_providers.len(), 3);
-        
+
         // First should be healthy, last should be unhealthy
-        assert!(matches!(sorted_providers[0].1, ProviderHealthStatus::Healthy { .. }));
-        assert!(matches!(sorted_providers[2].1, ProviderHealthStatus::Unhealthy { .. }));
+        assert!(matches!(
+            sorted_providers[0].1,
+            ProviderHealthStatus::Healthy { .. }
+        ));
+        assert!(matches!(
+            sorted_providers[2].1,
+            ProviderHealthStatus::Unhealthy { .. }
+        ));
     }
 }
