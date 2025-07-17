@@ -3,13 +3,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Context as _;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use super::{PerformanceConfig, PerformanceMonitor, ProviderMetrics, RequestType};
 
 /// Model loading optimizer for local providers
 pub struct ModelLoadingOptimizer {

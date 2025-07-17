@@ -1,7 +1,6 @@
 //! CLI integration for performance monitoring and optimization
 
 use std::collections::HashMap;
-use std::time::Duration;
 
 use anyhow::Context as _;
 use tracing::{info, warn};
@@ -148,7 +147,7 @@ impl PerformanceCli {
                     );
 
                     let mut metrics_map = HashMap::new();
-                    metrics_map.insert(name, metrics);
+                    metrics_map.insert(name.clone(), metrics);
 
                     Ok(PerformanceOutput {
                         command: PerformanceCommand::Metrics { provider_name: Some(name) },
@@ -272,13 +271,14 @@ impl PerformanceCli {
                     format!(
                         "Optimization failed for {}: {}",
                         name,
-                        optimization_result.error.unwrap_or_else(|| "Unknown error".to_string())
+                        optimization_result.error.as_ref().unwrap_or(&"Unknown error".to_string())
                     )
                 };
 
+                let success = optimization_result.success;
                 Ok(PerformanceOutput {
                     command: PerformanceCommand::Optimize { provider_name: Some(name) },
-                    success: optimization_result.success,
+                    success,
                     message,
                     data: Some(PerformanceData::OptimizationResults(vec![optimization_result])),
                 })
@@ -307,12 +307,12 @@ impl PerformanceCli {
                             Impact: {}\n\n",
                             i + 1,
                             match rec.recommendation_type {
-                                crate::performance::optimization::RecommendationType::ModelLoading => "Model Loading",
-                                crate::performance::optimization::RecommendationType::Memory => "Memory",
-                                crate::performance::optimization::RecommendationType::Cpu => "CPU",
-                                crate::performance::optimization::RecommendationType::Network => "Network",
-                                crate::performance::optimization::RecommendationType::Configuration => "Configuration",
-                                crate::performance::optimization::RecommendationType::ProviderSelection => "Provider Selection",
+                                crate::performance::RecommendationType::ModelLoading => "Model Loading",
+                                crate::performance::RecommendationType::Memory => "Memory",
+                                crate::performance::RecommendationType::Cpu => "CPU",
+                                crate::performance::RecommendationType::Network => "Network",
+                                crate::performance::RecommendationType::Configuration => "Configuration",
+                                crate::performance::RecommendationType::ProviderSelection => "Provider Selection",
                             },
                             rec.priority,
                             rec.provider_name,

@@ -10,14 +10,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Context as _;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Performance metrics for a provider
-#[derive(Debug, Clone, Serialize, Deserialize, Setters)]
+#[derive(Debug, Clone, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct ProviderMetrics {
     /// Provider name
@@ -47,7 +46,30 @@ pub struct ProviderMetrics {
     /// CPU usage percentage
     pub cpu_usage_percent: Option<f64>,
     /// Last updated timestamp
+    #[serde(skip)]
+    #[setters(skip)]
     pub last_updated: Instant,
+}
+
+impl Default for ProviderMetrics {
+    fn default() -> Self {
+        Self {
+            provider_name: String::new(),
+            total_requests: 0,
+            successful_requests: 0,
+            failed_requests: 0,
+            avg_response_time: Duration::from_millis(0),
+            min_response_time: Duration::from_millis(0),
+            max_response_time: Duration::from_millis(0),
+            p95_response_time: Duration::from_millis(0),
+            p99_response_time: Duration::from_millis(0),
+            throughput: 0.0,
+            model_loading_time: None,
+            memory_usage_mb: None,
+            cpu_usage_percent: None,
+            last_updated: Instant::now(),
+        }
+    }
 }
 
 /// Performance measurement for a single request
@@ -85,7 +107,7 @@ pub enum RequestType {
 }
 
 /// Performance monitoring configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Setters)]
+#[derive(Debug, Clone, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct PerformanceConfig {
     /// Whether performance monitoring is enabled
@@ -101,7 +123,7 @@ pub struct PerformanceConfig {
 }
 
 /// Alert thresholds for performance monitoring
-#[derive(Debug, Clone, Serialize, Deserialize, Setters)]
+#[derive(Debug, Clone, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct AlertThresholds {
     /// Maximum acceptable response time
@@ -117,7 +139,7 @@ pub struct AlertThresholds {
 }
 
 /// Benchmark targets for comparison with cloud providers
-#[derive(Debug, Clone, Serialize, Deserialize, Setters)]
+#[derive(Debug, Clone, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct BenchmarkTargets {
     /// Target response time to match cloud providers
@@ -278,7 +300,9 @@ impl PerformanceMonitor {
             let prev_avg = provider_metrics.avg_response_time;
             provider_metrics.avg_response_time = 
                 Duration::from_nanos(
-                    (prev_avg.as_nanos() * (total - 1) as u128 + response_time.as_nanos()) / total as u128
+                    ((prev_avg.as_nanos() * (total - 1) as u128 + response_time.as_nanos()) / total as u128)
+                        .try_into()
+                        .unwrap_or(u64::MAX)
                 );
 
             if response_time < provider_metrics.min_response_time {
@@ -324,7 +348,7 @@ impl PerformanceMonitor {
         let avg_response_times: Vec<Duration> = metrics.values().map(|m| m.avg_response_time).collect();
         let overall_avg_response_time = if !avg_response_times.is_empty() {
             let total_nanos: u128 = avg_response_times.iter().map(|d| d.as_nanos()).sum();
-            Duration::from_nanos(total_nanos / avg_response_times.len() as u128)
+            Duration::from_nanos((total_nanos / avg_response_times.len() as u128).try_into().unwrap_or(u64::MAX))
         } else {
             Duration::from_millis(0)
         };
@@ -449,9 +473,11 @@ impl PerformanceMonitor {
             provider_comparisons.insert(provider_name.clone(), comparison);
         }
 
+        let overall_score = self.calculate_overall_score(&provider_comparisons).await;
+        
         BenchmarkReport {
             provider_comparisons,
-            overall_performance_score: self.calculate_overall_score(&provider_comparisons).await,
+            overall_performance_score: overall_score,
             benchmark_timestamp: Instant::now(),
         }
     }
