@@ -186,7 +186,7 @@ impl From<&ForgeCommandManager> for Info {
         info = info
             .add_title("Keyboard Shortcuts")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
-            .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
+            .add_key_value("<CTRL+D>", "Quit Trust AI interactive shell")
             .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
 
         info

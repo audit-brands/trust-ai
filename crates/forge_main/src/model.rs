@@ -177,7 +177,7 @@ impl ForgeCommandManager {
                     Ok(Command::Dump(None))
                 }
             }
-            "/act" | "/forge" => Ok(Command::Forge),
+            "/act" | "/trust" => Ok(Command::Forge),
             "/plan" | "/muse" => Ok(Command::Muse),
             "/help" => Ok(Command::Help),
             "/model" => {
@@ -280,11 +280,11 @@ pub enum Command {
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
-    /// Updates the forge version
-    #[strum(props(usage = "Updates to the latest compatible version of forge"))]
+    /// Updates the trust-ai version
+    #[strum(props(usage = "Updates to the latest compatible version of trust-ai"))]
     Update,
-    /// Switch to "forge" agent.
-    /// This can be triggered with the '/forge' command.
+    /// Switch to "trust" agent.
+    /// This can be triggered with the '/trust' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
     Forge,
     /// Switch to "muse" agent.
@@ -322,7 +322,7 @@ pub enum Command {
     Agent,
 
     /// Log into the default provider.
-    #[strum(props(usage = "Log into the Forge provider"))]
+    #[strum(props(usage = "Log into the Trust AI provider"))]
     Login,
 
     /// Logs out of the current session.
@@ -339,7 +339,7 @@ impl Command {
             Command::Update => "/update",
             Command::Info => "/info",
             Command::Exit => "/exit",
-            Command::Forge => "/forge",
+            Command::Forge => "/trust",
             Command::Muse => "/muse",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",

@@ -31,12 +31,13 @@ impl AgentId {
     }
 
     pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
+    pub const TRUST: AgentId = AgentId(Cow::Borrowed("trust"));
     pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
 }
 
 impl Default for AgentId {
     fn default() -> Self {
-        AgentId::FORGE
+        AgentId::TRUST
     }
 }
 

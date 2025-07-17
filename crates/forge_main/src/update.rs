@@ -24,7 +24,7 @@ async fn execute_update_command(api: Arc<impl API>) {
         Ok(output) => {
             if output.success() {
                 let answer = inquire::Confirm::new(
-                    "You need to close forge to complete update. Do you want to close it now?",
+                    "You need to close trust-ai to complete update. Do you want to close it now?",
                 )
                 .with_default(true)
                 .with_error_message("Invalid response!")

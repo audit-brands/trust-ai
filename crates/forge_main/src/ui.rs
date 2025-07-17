@@ -344,7 +344,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_message(Some(content.clone())).await?;
             }
             Command::Forge => {
-                self.on_agent_change(AgentId::FORGE).await?;
+                self.on_agent_change(AgentId::TRUST).await?;
             }
             Command::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
