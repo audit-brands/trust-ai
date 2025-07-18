@@ -5,7 +5,7 @@ use forge_display::TitleFormat;
 use forge_main::{tracker, Cli, UI};
 
 // Commands that can run without authentication
-const OFFLINE_COMMANDS: &[&str] = &["help", "info"];
+const OFFLINE_COMMANDS: &[&str] = &["help", "info", "models", "local", "ollama"];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,6 +48,11 @@ fn is_offline_command(cli: &Cli) -> bool {
         });
     }
     
-    // For subcommands, currently all require authentication
+    // Check for commands that include "models" or "local" which should work without cloud authentication
+    if let Some(prompt) = &cli.prompt {
+        let command = prompt.trim().to_lowercase();
+        return command.contains("models") || command.contains("local") || command.contains("ollama");
+    }
+    
     false
 }

@@ -248,13 +248,40 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Create a minimal state for offline operations
         let workflow = Workflow::default();
         self.command.register_all(&workflow);
-        self.state = UIState::new(workflow);
+        
+        // For local operations, initialize with Ollama provider
+        if self.is_local_command() {
+            let provider = self.init_provider_with_mode(true).await?;
+            self.state = UIState::new(workflow).provider(provider);
+        } else {
+            self.state = UIState::new(workflow);
+        }
         Ok(())
+    }
+
+    fn is_local_command(&self) -> bool {
+        if let Some(prompt) = &self.cli.prompt {
+            let command = prompt.trim().to_lowercase();
+            return command.contains("models") || command.contains("local") || command.contains("ollama");
+        }
+        false
     }
 
     async fn on_message_with_offline(&mut self, content: Option<String>, offline_mode: bool) -> Result<()> {
         if offline_mode {
-            return Err(anyhow::anyhow!("AI chat functionality requires authentication. Use --offline=false or remove the --offline flag."));
+            // Check if this is a local-only command
+            if let Some(content) = &content {
+                let command_text = content.trim().to_lowercase();
+                if command_text.contains("models") || command_text.contains("local") || command_text.contains("ollama") {
+                    // Handle local model operations
+                    if command_text.contains("list") || command_text == "models" || command_text == "/models" {
+                        return self.handle_local_model_list().await;
+                    }
+                }
+            }
+            
+            return Err(anyhow::anyhow!("AI chat functionality requires authentication. Use --offline=false or remove the --offline flag.\n\
+                Supported offline commands: help, info, models, exit"));
         }
         self.on_message(content).await
     }
@@ -281,11 +308,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(info)?;
                 Ok(false)
             }
+            Command::Model(Some(ModelCommand::List)) if offline_mode => {
+                // Handle local model listing in offline mode
+                self.handle_local_model_list().await?;
+                Ok(false)
+            }
             Command::Exit => Ok(true),
             _ => {
                 if offline_mode {
                     self.writeln(TitleFormat::error(
-                        "This command requires authentication. Run without --offline flag or use supported offline commands: help, info, exit"
+                        "This command requires authentication. Run without --offline flag or use supported offline commands: help, info, models, exit"
                     ))?;
                     Ok(false)
                 } else {
@@ -1079,6 +1111,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
+        self.init_provider_with_mode(false).await
+    }
+
+    async fn init_provider_with_mode(&mut self, local_only: bool) -> Result<Provider> {
+        // For local-only mode, bypass cloud authentication and use default Ollama
+        if local_only {
+            return Ok(Provider::ollama("http://localhost:11434/api/"));
+        }
+
         match self.api.provider().await {
             // Use the forge key if available in the config.
             Ok(provider) => Ok(provider),
@@ -1318,6 +1359,54 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 tracker::login(user_info.auth_provider_id.into_string());
             }
         });
+    }
+
+    async fn handle_local_model_list(&mut self) -> Result<()> {
+        self.writeln(TitleFormat::title("Local AI Models"))?;
+        
+        if let Some(provider) = &self.state.provider {
+            let app_config = AppConfig::default(); // Use default config for local operations
+            match self.api.models(provider.clone(), app_config).await {
+                Ok(models) => {
+                    if models.is_empty() {
+                        self.writeln(TitleFormat::warning(
+                            "No local models found. Make sure Ollama is running and has models installed.\n\
+                            Visit https://ollama.ai for installation instructions."
+                        ))?;
+                    } else {
+                        // Filter to show only local models
+                        let local_models: Vec<_> = models.iter()
+                            .filter(|m| m.description.as_ref().map_or(false, |d| d.contains("Local")))
+                            .collect();
+                            
+                        if local_models.is_empty() {
+                            self.writeln(TitleFormat::info(
+                                "No local models detected. Available models are from cloud providers."
+                            ))?;
+                        } else {
+                            for model in local_models {
+                                self.writeln(format!(
+                                    "• {} - {}",
+                                    TitleFormat::title(&model.name),
+                                    model.description.as_deref().unwrap_or("No description")
+                                ))?;
+                            }
+                            self.writeln(format!("\nFound {} local model(s)", local_models.len()))?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    self.writeln(TitleFormat::error(&format!(
+                        "Failed to list local models: {}. Make sure Ollama is running on http://localhost:11434",
+                        e
+                    )))?;
+                }
+            }
+        } else {
+            self.writeln(TitleFormat::error("Local provider not initialized"))?;
+        }
+        
+        Ok(())
     }
 }
 
