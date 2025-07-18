@@ -1,10 +1,11 @@
-use std::panic;
-
 use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_display::TitleFormat;
 use forge_main::{tracker, Cli, UI};
+
+// Commands that can run without authentication
+const OFFLINE_COMMANDS: &[&str] = &["help", "info"];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,10 +26,28 @@ async fn main() -> Result<()> {
 
     // Initialize and run the UI
     let cli = Cli::parse();
+    
+    // Determine if we should run in offline mode
+    let offline_mode = cli.offline || is_offline_command(&cli);
+    
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted))?;
-    ui.run().await;
+    ui.run_with_offline_mode(offline_mode).await;
 
     Ok(())
+}
+
+// Check if the command being run can work offline
+fn is_offline_command(cli: &Cli) -> bool {
+    // If it's a prompt command, check if it's an offline command
+    if let Some(prompt) = &cli.prompt {
+        let command = prompt.trim().to_lowercase();
+        return OFFLINE_COMMANDS.iter().any(|&offline_cmd| {
+            command == format!("/{}", offline_cmd) || command == offline_cmd
+        });
+    }
+    
+    // For subcommands, currently all require authentication
+    false
 }

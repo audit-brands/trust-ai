@@ -58,6 +58,12 @@ pub struct Cli {
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
+    /// Run in offline mode (no authentication required)
+    ///
+    /// This flag disables authentication and allows running commands that work
+    /// locally without requiring network connectivity or login.
+    #[arg(long, default_value_t = false)]
+    pub offline: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]

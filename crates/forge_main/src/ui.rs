@@ -178,6 +178,122 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
+    pub async fn run_with_offline_mode(&mut self, offline_mode: bool) {
+        // Handle any errors that might occur during processing
+        if let Err(error) = self.run_inner_with_offline(offline_mode).await {
+            eprintln!("{}", TitleFormat::error(error.to_string()));
+            tracker::error(error.to_string()).await;
+        }
+    }
+
+    async fn run_inner_with_offline(&mut self, offline_mode: bool) -> Result<()> {
+        if let Some(mcp) = self.cli.subcommands.clone() {
+            return self.handle_subcommands(mcp).await;
+        }
+
+        // Check for dispatch flag first
+        if let Some(dispatch_json) = self.cli.event.clone() {
+            return self.handle_dispatch(dispatch_json).await;
+        }
+
+        // Handle direct prompt if provided
+        let prompt = self.cli.prompt.clone();
+        if let Some(prompt) = prompt {
+            return self.on_message_with_offline(Some(prompt), offline_mode).await;
+        }
+
+        // Display the banner in dimmed colors since we're in interactive mode
+        banner::display()?;
+        
+        // In offline mode, we skip authentication and use defaults
+        if !offline_mode {
+            self.init_state(true).await?;
+        } else {
+            self.init_offline_state().await?;
+        }
+        
+        self.trace_user();
+
+        // Get initial input from file or prompt
+        let mut command = match &self.cli.command {
+            Some(path) => self.console.upload(path).await?,
+            None => self.prompt().await?,
+        };
+
+        loop {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                }
+                result = self.on_command_with_offline(command, offline_mode) => {
+                    match result {
+                        Ok(exit) => if exit {return Ok(())},
+                        Err(error) => {
+                            if let Some(conversation_id) = self.state.conversation_id.as_ref() {
+                                if let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
+                                    TRACKER.set_conversation(conversation).await;
+                                }
+                            }
+                            eprintln!("{}", TitleFormat::error(error.to_string()));
+                            tracker::error(error.to_string()).await;
+                        }
+                    }
+                    command = self.prompt().await?;
+                }
+            }
+        }
+    }
+
+    async fn init_offline_state(&mut self) -> Result<()> {
+        // Create a minimal state for offline operations
+        let workflow = Workflow::default();
+        self.command.register_all(&workflow);
+        self.state = UIState::new(workflow);
+        Ok(())
+    }
+
+    async fn on_message_with_offline(&mut self, content: Option<String>, offline_mode: bool) -> Result<()> {
+        if offline_mode {
+            return Err(anyhow::anyhow!("AI chat functionality requires authentication. Use --offline=false or remove the --offline flag."));
+        }
+        self.on_message(content).await
+    }
+
+    async fn on_command_with_offline(&mut self, command: Command, offline_mode: bool) -> anyhow::Result<bool> {
+        match command {
+            Command::Help => {
+                let info = Info::from(self.command.as_ref());
+                self.writeln(info)?;
+                Ok(false)
+            }
+            Command::Info => {
+                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+                // Add user information if available (only if not in offline mode)
+                if !offline_mode {
+                    if let Ok(config) = self.api.app_config().await {
+                        if let Some(login_info) = &config.key_info {
+                            info = info.extend(Info::from(login_info));
+                        }
+                    }
+                }
+
+                self.writeln(info)?;
+                Ok(false)
+            }
+            Command::Exit => Ok(true),
+            _ => {
+                if offline_mode {
+                    self.writeln(TitleFormat::error(
+                        "This command requires authentication. Run without --offline flag or use supported offline commands: help, info, exit"
+                    ))?;
+                    Ok(false)
+                } else {
+                    self.on_command(command).await
+                }
+            }
+        }
+    }
         if let Some(mcp) = self.cli.subcommands.clone() {
             return self.handle_subcommands(mcp).await;
         }
