@@ -55,15 +55,10 @@
 
 ## Quick Start
 
-### Installation
+### Beta Installation
 ```bash
-# Download and install (Linux/macOS)
-curl -L https://github.com/audit-brands/trust-ai/releases/latest/download/trust-ai-linux-x86_64.tar.gz | tar xz
-sudo mv trust-ai /usr/local/bin/
-
-# Or via Homebrew
-brew tap audit-brands/trust-ai
-brew install trust-ai
+# One-line installation from source
+curl -sSL https://raw.githubusercontent.com/audit-brands/trust-ai/main/curl-install.sh | bash
 ```
 
 ### Setup
@@ -195,6 +190,26 @@ trust-ai perf status
 ```
 
 ## 🛠️ Installation
+
+### Beta Release (Source Build)
+For the beta release, Trust AI builds from source to avoid binary dependencies:
+
+```bash
+# One-line installation (recommended)
+curl -sSL https://raw.githubusercontent.com/audit-brands/trust-ai/main/curl-install.sh | bash
+```
+
+This will automatically:
+- Install Rust if needed
+- Download and build Trust AI from source
+- Install to `/usr/local/bin/trust-ai`
+- Create `trust` command alias
+
+**Beta Installation Time**: 2-5 minutes (includes Rust installation and compilation)
+
+See [BETA_INSTALL.md](BETA_INSTALL.md) for detailed beta installation instructions.
+
+### Pre-built Binaries (Coming Soon)
 
 ### Pre-built Binaries (Recommended)
 ```bash

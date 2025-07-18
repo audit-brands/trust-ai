@@ -7,6 +7,22 @@ agents:
   - forge_tool_task_list_mark_done
   - forge_tool_task_list_list
   - forge_tool_task_list_clear
+- id: trust
+  description: A comprehensive AI assistant for software development, file operations, and technical tasks
+  tools:
+  - forge_tool_fs_read
+  - forge_tool_fs_create
+  - forge_tool_fs_search
+  - forge_tool_fs_remove
+  - forge_tool_fs_patch
+  - forge_tool_fs_undo
+  - forge_tool_process_shell
+  - forge_tool_net_fetch
+  - forge_tool_task_list_append
+  - forge_tool_task_list_append_multiple
+  - forge_tool_task_list_list
+  - forge_tool_task_list_clear
+  - forge_tool_attempt_completion
 variables:
   operating_agent: forge
 commands:

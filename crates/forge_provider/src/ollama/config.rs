@@ -113,6 +113,7 @@ impl OllamaConfig {
     pub fn create_client(&self) -> Result<Client, OllamaError> {
         let mut builder = Client::builder()
             .timeout(Duration::from_secs(self.timeout_seconds))
+            .connect_timeout(Duration::from_secs(5)) // Add connection timeout
             .pool_idle_timeout(Duration::from_secs(30))
             .pool_max_idle_per_host(if self.connection_pooling { 10 } else { 0 });
 
@@ -218,7 +219,7 @@ impl OllamaHealthCheck {
                 let url = format!("http://{host}:{port}");
                 let config = OllamaConfig::new()
                     .with_base_url(url.clone())
-                    .with_timeout(5);
+                    .with_timeout(3);
                 let health_check = OllamaHealthCheck::new(config);
 
                 if let Ok(HealthStatus::Healthy { .. }) = health_check.check_health().await {

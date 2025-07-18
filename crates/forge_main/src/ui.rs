@@ -689,9 +689,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             None => {
-                self.writeln(TitleFormat::error(format!(
-                    "Model '{model_id}' not found"
-                )))?;
+                self.writeln(TitleFormat::error(format!("Model '{model_id}' not found")))?;
                 self.writeln("Use '/model list' to see available models")?;
             }
         }

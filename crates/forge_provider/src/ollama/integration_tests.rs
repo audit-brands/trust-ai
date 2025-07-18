@@ -8,8 +8,7 @@ use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 #[cfg(test)]
-use crate::mock_server::{normalize_ports, MockServer};
-use crate::ollama::error::OllamaError;
+use crate::mock_server::MockServer;
 use crate::ollama::Ollama;
 
 /// Integration test suite for Ollama provider
@@ -103,7 +102,10 @@ impl OllamaIntegrationTest {
                     !model.id.as_str().is_empty(),
                     "Model ID should not be empty"
                 );
-                assert!(!model.name.is_empty(), "Model name should not be empty");
+                assert!(
+                    model.name.as_ref().map_or(false, |name| !name.is_empty()),
+                    "Model name should not be empty"
+                );
             }
 
             Ok(())
@@ -123,7 +125,7 @@ impl OllamaIntegrationTest {
                 return Ok(());
             }
 
-            let model_id = ModelId::new(&models[0].id.as_str());
+            let model_id = ModelId::new(models[0].id.as_str());
             let context = Context::default()
                 .add_message(ContextMessage::system("You are a helpful assistant."))
                 .add_message(ContextMessage::user(
@@ -257,7 +259,7 @@ impl OllamaIntegrationTest {
                 return Ok(());
             }
 
-            let model_id = ModelId::new(&models[0].id.as_str());
+            let model_id = ModelId::new(models[0].id.as_str());
             let context = Context::default().add_message(ContextMessage::user(
                 "Count from 1 to 5",
                 model_id.clone().into(),

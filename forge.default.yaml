@@ -73,3 +73,33 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
+
+  - id: trust
+    title: "Balanced assistant"
+    description: |-
+      General-purpose AI assistant that provides balanced responses for various tasks including coding assistance, analysis, and general inquiries. Designed to work effectively with both cloud and local AI models. Offers comprehensive tool access for file operations, web browsing, and shell commands while maintaining a helpful and informative approach. Use as the default agent for general interactions, local model testing, and when you need a versatile assistant that can handle diverse requests without specific implementation or planning constraints.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-engineer-act.hbs }}
+    user_prompt: |-
+      {{#if (eq event.name 'trust/user_task_update')}}
+      <feedback>{{event.value}}</feedback>
+      {{else}}
+      <task>{{event.value}}</task>
+      {{/if}}
+    reasoning:
+      enabled: true
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_fs_create
+      - forge_tool_fs_remove
+      - forge_tool_fs_patch
+      - forge_tool_process_shell
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_undo
+      - forge_tool_task_list_append
+      - forge_tool_task_list_append_multiple
+      - forge_tool_task_list_list
+      - forge_tool_task_list_clear
+      - forge_tool_attempt_completion

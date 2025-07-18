@@ -47,10 +47,9 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self
-            .services
-            .models(self.provider().await.context("User is not logged in")?)
-            .await?)
+        let provider = self.provider().await.context("User is not logged in")?;
+        let app_config = self.app_config().await.unwrap_or_default();
+        Ok(self.services.models(provider, app_config).await?)
     }
 
     async fn chat(

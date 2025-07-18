@@ -92,7 +92,8 @@ pub trait ProviderService: Send + Sync {
         context: Context,
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
+    async fn models(&self, provider: Provider, app_config: AppConfig)
+    -> anyhow::Result<Vec<Model>>;
 }
 
 #[async_trait::async_trait]
@@ -376,8 +377,12 @@ impl<I: Services> ProviderService for I {
         self.provider_service().chat(id, context, provider).await
     }
 
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
-        self.provider_service().models(provider).await
+    async fn models(
+        &self,
+        provider: Provider,
+        app_config: AppConfig,
+    ) -> anyhow::Result<Vec<Model>> {
+        self.provider_service().models(provider, app_config).await
     }
 }
 

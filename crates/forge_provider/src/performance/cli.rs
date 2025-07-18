@@ -463,12 +463,12 @@ impl Default for PerformanceCli {
         // Create default configurations
         let performance_config = PerformanceConfig::default();
         let optimization_config = OptimizationConfig::default();
-        
+
         // Create components with default configurations
         let monitor = PerformanceMonitor::new(performance_config);
         let optimizer = ModelLoadingOptimizer::new(optimization_config.clone());
         let resource_monitor = ResourceMonitor::new(optimization_config);
-        
+
         Self { monitor, optimizer, resource_monitor }
     }
 }

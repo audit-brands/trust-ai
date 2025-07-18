@@ -266,8 +266,8 @@ impl ModelDiscoveryService {
         let health_check = OllamaHealthCheck::new(default_config.clone());
 
         // Try the default configuration first
-        match health_check.check_health().await {
-            Ok(health_status) if health_status.is_usable() => {
+        match tokio::time::timeout(Duration::from_secs(10), health_check.check_health()).await {
+            Ok(Ok(health_status)) if health_status.is_usable() => {
                 info!(
                     "Found Ollama service at default location: {}",
                     default_config.base_url
@@ -297,8 +297,16 @@ impl ModelDiscoveryService {
                     .discover_ollama_models("ollama-auto", &default_config, provider_health)
                     .await;
             }
-            _ => {
-                debug!("Default Ollama location not available, trying discovery");
+            Ok(Err(e)) => {
+                let warning = format!("Automatic Ollama discovery failed: {e}");
+                debug!("{}", warning);
+            }
+            Err(_) => {
+                let warning = "Automatic Ollama discovery timed out after 10 seconds";
+                debug!("{}", warning);
+            }
+            Ok(Ok(_)) => {
+                debug!("Default Ollama location not usable, trying discovery");
             }
         }
 

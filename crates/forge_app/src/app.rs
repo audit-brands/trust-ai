@@ -54,10 +54,10 @@ impl<S: Services> ForgeApp<S> {
         let tool_definitions = self.tool_registry.list().await?;
         let config = services.read_app_config().await.unwrap_or_default();
         let provider = services
-            .get_provider(config)
+            .get_provider(config.clone())
             .await
             .context("Failed to get provider")?;
-        let models = services.models(provider).await?;
+        let models = services.models(provider, config).await?;
 
         // Discover files using the discovery service
         let workflow = services.read_merged(None).await.unwrap_or_default();

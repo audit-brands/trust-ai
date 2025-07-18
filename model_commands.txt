@@ -1,0 +1,6 @@
+/model discover
+/model list
+/model health
+/model select ollama/qwen2.5-coder:7b
+/model status
+/exit

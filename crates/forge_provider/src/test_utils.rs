@@ -4,15 +4,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use forge_domain::model::{Model, ModelId};
+use forge_app::domain::{Model, ModelId};
 use tokio::sync::RwLock;
 
 use crate::config::local_ai::{LocalAiConfig, ProviderHealthChecker, ProviderHealthStatus};
-use crate::discovery::{
-    DiscoveredModel, DiscoveryStats, ModelDiscoveryResult, ModelDiscoveryService,
-};
-use crate::health::{HealthCheckResult, HealthMonitor, ProviderHealthInfo};
-use crate::selection::{ProviderMetrics, ProviderSelector, ProviderType};
+use crate::discovery::{DiscoveredModel, DiscoveryStats, ModelDiscoveryResult};
+use crate::health::{HealthCheckResult, ProviderHealthInfo};
+use crate::selection::{ProviderMetrics, ProviderType};
 
 /// Mock health checker for testing
 pub struct MockHealthChecker {

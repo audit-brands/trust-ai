@@ -3,7 +3,8 @@ use forge_app::domain::{Context, ContextMessage, ModelId};
 use tokio_stream::StreamExt;
 use tracing::info;
 
-use crate::ollama::{OllamaError, OllamaIntegrationTest};
+use crate::ollama::error::OllamaError;
+use crate::ollama::OllamaIntegrationTest;
 
 /// End-to-end integration test for Ollama provider
 ///
@@ -12,9 +13,6 @@ use crate::ollama::{OllamaError, OllamaIntegrationTest};
 /// and proper functionality across various scenarios.
 #[tokio::test]
 async fn test_ollama_end_to_end_integration() -> anyhow::Result<()> {
-    // Initialize tracing for test visibility
-    tracing_subscriber::fmt::init();
-
     info!("Starting Ollama end-to-end integration test");
 
     // Create integration test suite
@@ -202,7 +200,7 @@ async fn test_ollama_graceful_degradation() -> anyhow::Result<()> {
     assert!(result.is_err());
 
     // Verify error is categorized correctly
-    let error_chain = format!("{:?}", result.unwrap_err());
+    let _error_chain = format!("{:?}", result.unwrap_err());
     // Should contain timeout-related information
 
     info!("Ollama graceful degradation test completed successfully");
